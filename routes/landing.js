@@ -520,6 +520,17 @@ const LANDING_PAGE = `
             border-radius: 6px;
         }
 
+        /* Scroll reveal (bidirectional) */
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(25px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        .scroll-reveal.scroll-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .hero { padding: 2.5rem 5% 1.5rem; }
@@ -755,18 +766,18 @@ const LANDING_PAGE = `
             } catch {}
         })();
 
-        // Scroll-triggered animations for below-the-fold sections
+        // Scroll-triggered animations (bidirectional)
         const scrollObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    entry.target.classList.add('anim-fade-up');
-                    scrollObserver.unobserve(entry.target);
+                    entry.target.classList.add('scroll-visible');
+                } else {
+                    entry.target.classList.remove('scroll-visible');
                 }
             });
-        }, { threshold: 0.15 });
-        document.querySelectorAll('.feature-card').forEach(el => {
-            el.classList.remove('anim-scale-in', 'anim-fade-up');
-            el.style.opacity = '0';
+        }, { threshold: 0.12 });
+        document.querySelectorAll('.feature-card, .how-it-works, .step, .tech-section, .about-section').forEach(el => {
+            el.classList.add('scroll-reveal');
             scrollObserver.observe(el);
         });
     </script>

@@ -89,6 +89,8 @@ const LEGAL_STYLES = `
     .footer-links a:hover {
         border-bottom-color: #fff;
     }
+    .scroll-reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.45s ease, transform 0.45s ease; }
+    .scroll-reveal.scroll-visible { opacity: 1; transform: translateY(0); }
     .back-link {
         display: block;
         text-align: center;
@@ -161,6 +163,18 @@ const CONTACT_SCRIPT = `
                 showCopyToast(CONTACT_EMAIL);
             }
         }
+
+        // Bidirectional scroll reveal
+        const scrollObs = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) e.target.classList.add('scroll-visible');
+                else e.target.classList.remove('scroll-visible');
+            });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.container h2, .container p, .container ul').forEach(el => {
+            el.classList.add('scroll-reveal');
+            scrollObs.observe(el);
+        });
     </script>
 `;
 
@@ -403,6 +417,8 @@ const AGIS_PAGE = `
         }
         .anim { opacity: 0; animation: fade-up 0.6s ease forwards; }
         .anim-fade { opacity: 0; animation: fade-in 0.5s ease forwards; }
+        .scroll-reveal { opacity: 0; transform: translateY(25px); transition: opacity 0.5s ease, transform 0.5s ease; }
+        .scroll-reveal.scroll-visible { opacity: 1; transform: translateY(0); }
         .d1 { animation-delay: 0.1s; }
         .d2 { animation-delay: 0.2s; }
         .d3 { animation-delay: 0.35s; }
@@ -742,6 +758,18 @@ const AGIS_PAGE = `
         // stagger the two terminals
         const delay = Number(term.dataset.convo) * 1500;
         setTimeout(playConvo, 1200 + delay);
+    });
+
+    // Bidirectional scroll reveal for content sections
+    const scrollObs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+            if (e.isIntersecting) e.target.classList.add('scroll-visible');
+            else e.target.classList.remove('scroll-visible');
+        });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.content section, .cta-block, .project-card').forEach(el => {
+        el.classList.add('scroll-reveal');
+        scrollObs.observe(el);
     });
     </script>
 </body>
