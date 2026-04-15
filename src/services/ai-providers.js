@@ -758,47 +758,44 @@ class AIProviderManager {
         return failOpenProviders;
     }
     _rankedProviders(options = {}) {
-        return this._availableProviders(options)
-            .sort((a, b) => {
+        const available = this._availableProviders(options);
+        if (this.selectedProviderType !== 'auto') {
+            // Non-auto: deterministic sort by performance
+            return available.sort((a, b) => {
                 const ma = getProviderMetricSnapshot(this.metrics.get(a.name));
                 const mb = getProviderMetricSnapshot(this.metrics.get(b.name));
-                // Health first — keep dead providers at the bottom
-                if (this.selectedProviderType === 'auto') {
-                    const healthDelta = resolveAutoHealthBucket(ma) - resolveAutoHealthBucket(mb);
-                    if (healthDelta !== 0) {return healthDelta;}
-                }
-                // Family priority (encodes operator preference order)
-                if (this.selectedProviderType === 'auto') {
-                    const familyDelta = resolveAutoFamilyPriority(a) - resolveAutoFamilyPriority(b);
-                    if (familyDelta !== 0) {return familyDelta;}
-                }
-                // Performance score (success rate + latency)
                 const scoreDelta = computeProviderRankScore(mb) - computeProviderRankScore(ma);
-                if (Math.abs(scoreDelta) > 0.0001) {
-                    return scoreDelta;
-                }
+                if (Math.abs(scoreDelta) > 0.0001) {return scoreDelta;}
                 return a.name.localeCompare(b.name);
             });
+        }
+        // Auto mode: bucket by health, shuffle healthy providers randomly
+        const buckets = new Map(); // healthBucket → provider[]
+        for (const p of available) {
+            const m = getProviderMetricSnapshot(this.metrics.get(p.name));
+            const bucket = resolveAutoHealthBucket(m);
+            if (!buckets.has(bucket)) {buckets.set(bucket, []);}
+            buckets.get(bucket).push(p);
+        }
+        // Fisher-Yates shuffle within each bucket
+        for (const arr of buckets.values()) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+        }
+        // Concatenate buckets in health order: 0 (healthy), 1 (untested), 2 (degraded), 3 (dead)
+        const result = [];
+        for (const bucket of [0, 1, 2, 3]) {
+            if (buckets.has(bucket)) {result.push(...buckets.get(bucket));}
+        }
+        return result;
     }
     _getRoundRobinProvider(options = {}) {
         const availableProviders = this._availableProviders(options);
         if (availableProviders.length === 0) {return null;}
-
-        // Prefer the best family priority but rotate across all providers
-        let pool = availableProviders;
-        if (this.selectedProviderType === 'auto' && pool.length > 0) {
-            const bestFamilyPriority = Math.min(...pool.map(resolveAutoFamilyPriority));
-            const preferredFamily = pool.filter(
-                provider => resolveAutoFamilyPriority(provider) === bestFamilyPriority
-            );
-            if (preferredFamily.length > 0) {
-                pool = preferredFamily;
-            }
-        }
-
-        // Round-robin through pool
-        this.roundRobinIndex = (this.roundRobinIndex + 1) % pool.length;
-        return pool[this.roundRobinIndex];
+        // Random selection from all available providers
+        return availableProviders[Math.floor(Math.random() * availableProviders.length)];
     }
     _recordMetric(name, ok, latencyMs) {
         const m = this.metrics.get(name) || { successes: 0, failures: 0, avgLatencyMs: 1500 };

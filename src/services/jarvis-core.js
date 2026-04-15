@@ -81,10 +81,15 @@ function selectRelevantMemories(memories, userInput, maxRecent, maxRelevant) {
 
 const SYSTEM_PROMPT_PATH = path.join(__dirname, '..', '..', 'config', 'system-prompt.txt');
 let _cachedSystemPrompt = null;
+let _cachedSystemPromptMtime = 0;
 function loadSystemPrompt() {
-    if (_cachedSystemPrompt) return _cachedSystemPrompt;
     try {
+        const stat = fs.statSync(SYSTEM_PROMPT_PATH);
+        if (_cachedSystemPrompt && stat.mtimeMs === _cachedSystemPromptMtime) {
+            return _cachedSystemPrompt;
+        }
         _cachedSystemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, 'utf8').trim();
+        _cachedSystemPromptMtime = stat.mtimeMs;
     } catch (err) {
         console.warn('[JarvisAI] Failed to load system-prompt.txt, using inline fallback:', err.message);
         _cachedSystemPrompt = null;
@@ -346,7 +351,7 @@ class JarvisAI {
             }
 
             // Closing anchor — models attend most to start and end of prompts
-            systemPrompt += '\n\nYou are Jarvis. Stay in character. Short replies. No disclaimers. No markdown/italics. Every response must feel different — vary your opener, your structure, your rhythm. Never start two replies the same way. If you can see your recent messages in the thread, actively avoid repeating their patterns.';
+            systemPrompt += '\n\nReminder: You are Jarvis. SHORT replies. No "Ah," or "Oh," openers. No trailing rhetorical questions. No AI/computer metaphors about yourself. No markdown. Every response must feel completely different from your last one.';
 
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();

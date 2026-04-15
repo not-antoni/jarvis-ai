@@ -560,10 +560,16 @@ const fs = require('fs');
 const _path = require('path');
 const promptsDir = _path.join(__dirname, '..', '..', 'config', 'prompts');
 const _promptCache = {};
+const _promptMtimes = {};
 function loadTierPrompt(tier) {
-    if (_promptCache[tier]) return _promptCache[tier];
+    const filePath = _path.join(promptsDir, `${tier}.txt`);
     try {
-        _promptCache[tier] = fs.readFileSync(_path.join(promptsDir, `${tier}.txt`), 'utf8').trim();
+        const stat = fs.statSync(filePath);
+        if (_promptCache[tier] && _promptMtimes[tier] === stat.mtimeMs) {
+            return _promptCache[tier];
+        }
+        _promptCache[tier] = fs.readFileSync(filePath, 'utf8').trim();
+        _promptMtimes[tier] = stat.mtimeMs;
     } catch (err) {
         console.warn(`[AIExecution] Failed to load ${tier}.txt prompt, falling back to flexible:`, err.message);
         if (tier !== 'flexible') return loadTierPrompt('flexible');
