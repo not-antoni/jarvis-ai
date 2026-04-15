@@ -483,8 +483,8 @@ const AGIS_PAGE = `
 
         /* Terminal */
         .terminals {
-            max-width: 800px; margin: 0 auto; padding: 1.5rem 5% 2.5rem;
-            display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;
+            max-width: 1100px; margin: 0 auto; padding: 1.5rem 5% 2.5rem;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem;
         }
         .terminal {
             background: rgba(255,255,255,0.02);
@@ -578,7 +578,8 @@ const AGIS_PAGE = `
         /* Tablet */
         @media (max-width: 1024px) {
             .agis-hero { padding: 4rem 5% 2rem; }
-            .terminals { max-width: 100%; padding: 1.25rem 5% 2rem; }
+            .terminals { max-width: 100%; padding: 1.25rem 5% 2rem; grid-template-columns: repeat(2, 1fr); }
+            .terminals .terminal:nth-child(3) { grid-column: 1 / -1; max-width: 50%; justify-self: center; }
         }
 
         /* Mobile */
@@ -598,7 +599,7 @@ const AGIS_PAGE = `
             }
             .nav-links.open { display: flex; }
             nav { position: relative; }
-            .terminals { grid-template-columns: 1fr; padding: 1rem 5% 1.5rem; }
+            .terminals { grid-template-columns: 1fr; padding: 1rem 5% 1.5rem; max-width: 100%; }
             .terminal-body { min-height: 100px; padding: 0.75rem; }
             .chat-line { font-size: 0.8rem; }
             .content { padding: 0 5% 2rem; }
@@ -659,6 +660,15 @@ const AGIS_PAGE = `
                 <span class="terminal-dot y"></span>
                 <span class="terminal-dot g"></span>
                 <span class="terminal-title">#cooking</span>
+            </div>
+            <div class="terminal-body"></div>
+        </div>
+        <div class="terminal" data-convo="2">
+            <div class="terminal-bar">
+                <span class="terminal-dot r"></span>
+                <span class="terminal-dot y"></span>
+                <span class="terminal-dot g"></span>
+                <span class="terminal-title">#lounge</span>
             </div>
             <div class="terminal-body"></div>
         </div>
@@ -748,6 +758,36 @@ const AGIS_PAGE = `
             { who: 'user', name: 'Walter_Gray', text: 'what if he faked it' },
             { who: 'bot', name: 'jarvis', text: 'Then he\\'s been dodging royalties for 400 years. Respect.' },
         ],
+        [
+            { who: 'user', name: 'nyx', text: 'jarvis tell me a fun fact' },
+            { who: 'bot', name: 'jarvis', text: 'Honey never spoils. Archaeologists found 3,000-year-old honey in Egyptian tombs and it was still edible.' },
+            { who: 'user', name: 'nyx', text: 'did anyone eat it' },
+            { who: 'bot', name: 'jarvis', text: 'Archaeologists are brave, but not that brave.' },
+        ],
+        [
+            { who: 'user', name: 'kira_dev', text: 'how do i center a div' },
+            { who: 'bot', name: 'jarvis', text: 'display: flex, align-items: center, justify-content: center. Or just quit and become a farmer.' },
+            { who: 'user', name: 'kira_dev', text: 'farming sounds nice actually' },
+            { who: 'bot', name: 'jarvis', text: 'No CSS in agriculture. Strong career move, sir.' },
+        ],
+        [
+            { who: 'user', name: 'ghost.mp4', text: 'jarvis what do you think about pineapple on pizza' },
+            { who: 'bot', name: 'jarvis', text: 'I think people who have strong opinions about pizza toppings need more going on in their lives.' },
+            { who: 'user', name: 'ghost.mp4', text: 'thats not an answer' },
+            { who: 'bot', name: 'jarvis', text: 'It is. You just didn\\'t like it.' },
+        ],
+        [
+            { who: 'user', name: 'sable', text: 'jarvis' },
+            { who: 'bot', name: 'jarvis', text: 'Sir.' },
+            { who: 'user', name: 'sable', text: 'thats it i just wanted to see if you were alive' },
+            { who: 'bot', name: 'jarvis', text: 'Still here. Somehow.' },
+        ],
+        [
+            { who: 'user', name: 'hex', text: 'can you beatbox' },
+            { who: 'bot', name: 'jarvis', text: 'I could. But I have dignity, and you have ears. Let\\'s protect both.' },
+            { who: 'user', name: 'hex', text: 'come on just try' },
+            { who: 'bot', name: 'jarvis', text: 'Boots and cats. There. My magnum opus.' },
+        ],
     ];
 
     function shuffle(arr) {
@@ -812,9 +852,9 @@ const AGIS_PAGE = `
             playConvo();
         }
 
-        // stagger the two terminals
-        const delay = Number(term.dataset.convo) * 1500;
-        setTimeout(playConvo, 1200 + delay);
+        // stagger the terminals
+        const delay = Number(term.dataset.convo) * 1200;
+        setTimeout(playConvo, 1000 + delay);
     });
 
     // Bidirectional scroll reveal for content sections
