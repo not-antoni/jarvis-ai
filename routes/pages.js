@@ -443,6 +443,7 @@ const AGIS_PAGE = `
             display: flex; align-items: center; gap: 2rem;
             padding: 1.25rem 5%; max-width: 1300px; margin: 0 auto;
             border-bottom: 1px solid rgba(255,255,255,0.06);
+            position: relative; z-index: 1000;
         }
         .logo { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; }
         .logo-mark {

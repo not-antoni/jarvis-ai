@@ -110,6 +110,8 @@ const LANDING_PAGE = `
         /* Navigation */
         .nav-wrap {
             border-bottom: 1px solid rgba(255,255,255,0.06);
+            position: relative;
+            z-index: 1000;
         }
 
         nav {
