@@ -373,7 +373,7 @@ const LANDING_PAGE = `
                     <div class="stat-label">Commands</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-number" id="serverCount">1K+</div>
+                    <div class="stat-number" id="serverCount">&nbsp;</div>
                     <div class="stat-label">Servers</div>
                 </div>
                 <div class="stat-item">
@@ -471,9 +471,12 @@ const LANDING_PAGE = `
                     document.getElementById('serverCount').textContent = formatted;
                 } else if (retries > 0) {
                     setTimeout(() => fetchStats(retries - 1), 5000);
+                } else {
+                    document.getElementById('serverCount').textContent = '—';
                 }
             } catch (e) {
                 if (retries > 0) setTimeout(() => fetchStats(retries - 1), 5000);
+                else document.getElementById('serverCount').textContent = '—';
             }
         }
 
