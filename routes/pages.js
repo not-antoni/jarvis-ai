@@ -345,6 +345,344 @@ ${CONTACT_SCRIPT}
 `;
 
 // ============================================================================
+// AGIS PAGE
+// ============================================================================
+
+const AGIS_PAGE = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${GA_MEASUREMENT_ID}');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGIS | Artificial General Intelligent System</title>
+    <link rel="icon" type="image/webp" href="/jarvis.webp">
+    <meta name="theme-color" content="#000">
+    <meta name="description" content="AGIS is the framework and community behind Jarvis and other AI-powered Discord bots. We named it before we built it.">
+    <meta property="og:title" content="AGIS | Artificial General Intelligent System">
+    <meta property="og:description" content="AGIS is the framework and community behind Jarvis and other AI-powered Discord bots.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="${SITE_BASE_URL}/agis">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="${SITE_BASE_URL}/agis">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
+            background: #000;
+            color: #ccc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes fade-up {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+        .anim { opacity: 0; animation: fade-up 0.6s ease forwards; }
+        .anim-fade { opacity: 0; animation: fade-in 0.5s ease forwards; }
+        .d1 { animation-delay: 0.1s; }
+        .d2 { animation-delay: 0.2s; }
+        .d3 { animation-delay: 0.35s; }
+        .d4 { animation-delay: 0.5s; }
+        .d5 { animation-delay: 0.65s; }
+        .d6 { animation-delay: 0.8s; }
+
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            padding: 1.25rem 5%;
+            max-width: 1300px;
+            margin: 0 auto;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            text-decoration: none;
+        }
+        .logo-mark {
+            width: 32px;
+            height: 32px;
+            background: #fff;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.7rem;
+            color: #111;
+            letter-spacing: 0.5px;
+        }
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .nav-links {
+            display: flex;
+            gap: 1.75rem;
+            list-style: none;
+            margin-left: auto;
+        }
+        .nav-links a {
+            color: #999;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: #fff; }
+
+        .agis-hero {
+            text-align: center;
+            padding: 5rem 5% 3rem;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .agis-logo {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 72px;
+            height: 72px;
+            background: #fff;
+            border-radius: 14px;
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: #111;
+            letter-spacing: 1px;
+            margin-bottom: 1.5rem;
+        }
+        .agis-hero h1 {
+            color: #fff;
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 0.4rem;
+        }
+        .agis-subtitle {
+            color: #555;
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+        }
+        .agis-hero .lead {
+            color: #999;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            max-width: 550px;
+            margin: 0 auto;
+        }
+
+        .content {
+            max-width: 650px;
+            margin: 0 auto;
+            padding: 0 5% 3rem;
+        }
+        .content section {
+            margin-bottom: 2.5rem;
+        }
+        .content h2 {
+            color: #fff;
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+        .content p {
+            color: #999;
+            font-size: 0.95rem;
+            line-height: 1.8;
+            margin-bottom: 0.75rem;
+        }
+        .content a {
+            color: #fff;
+            text-decoration: underline;
+            text-decoration-color: rgba(255,255,255,0.3);
+        }
+        .content a:hover {
+            text-decoration-color: #fff;
+        }
+
+        .project-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 10px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            transition: border-color 0.2s;
+        }
+        .project-card:hover {
+            border-color: rgba(255,255,255,0.12);
+        }
+        .project-icon {
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+        .project-info h3 {
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .project-info p {
+            color: #888;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin: 0;
+        }
+        .project-info .tag {
+            display: inline-block;
+            background: rgba(255,255,255,0.06);
+            color: #888;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin-top: 0.4rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .cta-block {
+            text-align: center;
+            padding: 2rem 5% 3rem;
+        }
+        .cta-block .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.9rem 1.75rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.2s;
+            background: #fff;
+            color: #000;
+        }
+        .cta-block .btn:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+
+        footer {
+            margin-top: auto;
+            padding: 1.25rem 5% 1.5rem;
+            text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.5rem;
+        }
+        .footer-links a {
+            color: #777;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+        .footer-links a:hover { color: #999; }
+        .footer-copy {
+            color: #777;
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 768px) {
+            .agis-hero { padding: 3rem 5% 2rem; }
+            .agis-hero h1 { font-size: 1.75rem; }
+            .agis-hero .lead { font-size: 1rem; }
+            .nav-links { display: none; }
+            .content { padding: 0 5% 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="anim-fade">
+        <a href="/" class="logo">
+            <span class="logo-mark">AGIS</span>
+            <span class="logo-text">Jarvis</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="/#features">Features</a></li>
+            <li><a href="/agis">AGIS</a></li>
+            <li><a href="${DISCORD_INVITE}" target="_blank">Support</a></li>
+        </ul>
+    </nav>
+
+    <div class="agis-hero">
+        <div class="agis-logo anim d1">AGIS</div>
+        <h1 class="anim d2">AGIS</h1>
+        <p class="agis-subtitle anim d3">Artificial General Intelligent System</p>
+        <p class="lead anim d4">We named the framework before we built it. Honestly, the name was too good to wait. Right now AGIS is the brand, the community, and the Discord server where everything happens.</p>
+    </div>
+
+    <div class="content">
+        <section class="anim d4">
+            <h2>What even is AGIS</h2>
+            <p>AGIS is the umbrella for every bot and tool we make. Think of it as the framework that ties everything together. The actual framework part is still being figured out, but the name is locked in and that's what matters.</p>
+            <p>The community lives in <a href="${DISCORD_INVITE}" target="_blank">AGIS Operations</a> on Discord. That's where people use Jarvis, break things, suggest features, and occasionally just hang out.</p>
+        </section>
+
+        <section class="anim d5">
+            <h2>Projects</h2>
+            <a href="/" style="text-decoration:none;">
+                <div class="project-card">
+                    <span class="project-icon">🤖</span>
+                    <div class="project-info">
+                        <h3>Jarvis</h3>
+                        <p>The flagship. AI chat, voice, music, automod. He's got opinions and he's not afraid to share them.</p>
+                        <span class="tag">live</span>
+                    </div>
+                </div>
+            </a>
+        </section>
+
+        <section class="anim d6">
+            <h2>What's next</h2>
+            <p>More bots, more tools, maybe an actual framework someday. We're building in public and figuring it out as we go. If that sounds fun, come hang out.</p>
+        </section>
+    </div>
+
+    <div class="cta-block anim d6">
+        <a href="${DISCORD_INVITE}" class="btn" target="_blank">Join AGIS Operations</a>
+    </div>
+
+    <footer>
+        <div class="footer-links">
+            <a href="/tos">Terms</a>
+            <a href="/policy">Privacy</a>
+            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </div>
+        <p class="footer-copy">&copy; 2026 AGIS</p>
+    </footer>
+</body>
+</html>
+`;
+
+// ============================================================================
 // ROUTES
 // ============================================================================
 
@@ -364,6 +702,11 @@ router.get('/tos', (req, res) => {
 
 router.get('/terms', (req, res) => {
     res.type('html').send(TERMS_OF_SERVICE);
+});
+
+// AGIS page
+router.get('/agis', (req, res) => {
+    res.type('html').send(AGIS_PAGE);
 });
 
 module.exports = router;

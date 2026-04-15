@@ -415,52 +415,6 @@ const LANDING_PAGE = `
             line-height: 1.6;
         }
 
-        /* AGIS section */
-        .agis-section {
-            padding: 3rem 5%;
-            max-width: 700px;
-            margin: 0 auto;
-            text-align: center;
-        }
-
-        .agis-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 64px;
-            height: 64px;
-            background: #fff;
-            border-radius: 12px;
-            font-weight: 800;
-            font-size: 1.1rem;
-            color: #111;
-            letter-spacing: 1px;
-            margin-bottom: 1.25rem;
-        }
-
-        .agis-section h2 {
-            color: #fff;
-            font-size: 1.35rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-
-        .agis-section .agis-full {
-            color: #666;
-            font-size: 0.8rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            margin-bottom: 1rem;
-        }
-
-        .agis-section p {
-            color: #999;
-            font-size: 0.95rem;
-            line-height: 1.7;
-            max-width: 500px;
-            margin: 0 auto;
-        }
-
         /* Responsive */
         @media (max-width: 768px) {
             .hero { padding: 2.5rem 5% 1.5rem; }
@@ -485,7 +439,7 @@ const LANDING_PAGE = `
         </a>
         <ul class="nav-links">
             <li><a href="#features">Features</a></li>
-            <li><a href="#agis">AGIS</a></li>
+            <li><a href="/agis">AGIS</a></li>
             <li><a href="${DISCORD_INVITE}" target="_blank">Support</a></li>
         </ul>
     </nav>
@@ -495,7 +449,7 @@ const LANDING_PAGE = `
         <section class="hero">
             <div class="hero-glow"></div>
             <h1 class="anim-fade-up delay-1">The Discord AI with <span class="accent">Actual Personality</span></h1>
-            <p class="anim-fade-up delay-2">Stop using boring bots. Jarvis does AI chat, voice conversations, music, and AutoMod — like an actual member of your server.</p>
+            <p class="anim-fade-up delay-2">Stop using boring bots. Jarvis does AI chat, voice conversations, music, and AutoMod. Like an actual member of your server.</p>
             <div class="cta-buttons anim-fade-up delay-3">
                 <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">Add to Discord</a>
                 <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join AGIS Operations</a>
@@ -539,27 +493,21 @@ const LANDING_PAGE = `
                 <div class="feature-card">
                     <span class="feature-icon">🎙️</span>
                     <h3>Voice Chat</h3>
-                    <p>Run /voice and he joins your call. Say "Jarvis" and talk — he hears you and talks back. Forget to say his name and he pretends you don't exist. Works best if you're British, apparently.</p>
+                    <p>Run /voice and he joins your call. Say "Jarvis" and talk, he hears you and talks back. Forget to say his name and he pretends you don't exist. Works best if you're British, apparently.</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">🎵</span>
                     <h3>Music</h3>
-                    <p>Drop a link, hit play. Queue, skip, loop, volume — it just works. No 15-step setup required.</p>
+                    <p>Drop a link, hit play. Queue, skip, loop, volume. It just works. No 15-step setup required.</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">🛡️</span>
                     <h3>AutoMod</h3>
-                    <p>Spam, toxicity, sketchy links — handled. You can stop babysitting your server now.</p>
+                    <p>Spam, toxicity, sketchy links. Handled. You can stop babysitting your server now.</p>
                 </div>
             </div>
         </section>
 
-        <section class="agis-section" id="agis">
-            <div class="agis-badge">AGIS</div>
-            <h2>Built by AGIS</h2>
-            <p class="agis-full">Artificial General Intelligent System</p>
-            <p>The team behind Jarvis. We build AI that actually fits into your server — not as a tool, but as a presence.</p>
-        </section>
     </main>
 
     <footer>
@@ -633,7 +581,7 @@ const LANDING_PAGE = `
                 }
             });
         }, { threshold: 0.15 });
-        document.querySelectorAll('.feature-card, .agis-section').forEach(el => {
+        document.querySelectorAll('.feature-card').forEach(el => {
             el.classList.remove('anim-scale-in', 'anim-fade-up');
             el.style.opacity = '0';
             scrollObserver.observe(el);
