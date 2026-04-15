@@ -120,9 +120,22 @@ const LEGAL_STYLES = `
         transform: translate(-50%, 0);
     }
     @media (max-width: 768px) {
-        body { padding: 1rem; }
-        .container { padding: 1.5rem; }
-        h1 { font-size: 1.5rem; }
+        body { padding: 0.75rem; }
+        .container { padding: 1.25rem 1rem; border-radius: 8px; }
+        h1 { font-size: 1.4rem; margin-bottom: 0.75rem; }
+        h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
+        p, li { font-size: 0.9rem; line-height: 1.7; }
+        code { font-size: 0.82rem; padding: 0.15rem 0.4rem; }
+        .back-link { margin-bottom: 1.25rem; }
+        .footer-links { gap: 0.75rem; }
+        .footer-links a { font-size: 0.78rem; }
+    }
+    @media (max-width: 400px) {
+        body { padding: 0.5rem; }
+        .container { padding: 1rem 0.75rem; }
+        h1 { font-size: 1.2rem; }
+        h2 { font-size: 1rem; }
+        p, li { font-size: 0.85rem; }
     }
 `;
 const CONTACT_SCRIPT = `
@@ -441,6 +454,11 @@ const AGIS_PAGE = `
         .nav-links { display: flex; gap: 1.75rem; list-style: none; margin-left: auto; }
         .nav-links a { color: #999; text-decoration: none; font-weight: 500; font-size: 0.9rem; transition: color 0.2s; }
         .nav-links a:hover { color: #fff; }
+        .menu-toggle {
+            display: none; background: none; border: none; color: #999;
+            font-size: 1.4rem; cursor: pointer; margin-left: auto; padding: 0.25rem; line-height: 1;
+        }
+        .menu-toggle:hover { color: #fff; }
 
         .agis-hero {
             text-align: center; padding: 5rem 5% 2rem;
@@ -556,13 +574,48 @@ const AGIS_PAGE = `
         .footer-links a:hover { color: #fff; }
         .footer-copy { color: #aaa; font-size: 0.8rem; }
 
+        /* Tablet */
+        @media (max-width: 1024px) {
+            .agis-hero { padding: 4rem 5% 2rem; }
+            .terminals { max-width: 100%; padding: 1.25rem 5% 2rem; }
+        }
+
+        /* Mobile */
         @media (max-width: 768px) {
-            .agis-hero { padding: 3rem 5% 2rem; }
+            .agis-hero { padding: 2.5rem 5% 1.5rem; }
             .agis-hero h1 { font-size: 1.75rem; }
-            .agis-hero .lead { font-size: 1rem; }
-            .nav-links { display: none; }
-            .terminals { grid-template-columns: 1fr; padding: 1rem 5% 2rem; }
+            .agis-hero .lead { font-size: 0.95rem; line-height: 1.7; }
+            .agis-logo { width: 56px; height: 56px; font-size: 1rem; border-radius: 10px; }
+            .agis-subtitle { font-size: 0.7rem; letter-spacing: 2px; }
+            .menu-toggle { display: block; }
+            .nav-links {
+                display: none; position: absolute; top: 100%; left: 0; right: 0;
+                background: #000; border-bottom: 1px solid rgba(255,255,255,0.06);
+                flex-direction: column; padding: 1rem 5%; gap: 0.75rem;
+            }
+            .nav-links.open { display: flex; }
+            nav { position: relative; }
+            .terminals { grid-template-columns: 1fr; padding: 1rem 5% 1.5rem; }
+            .terminal-body { min-height: 100px; padding: 0.75rem; }
+            .chat-line { font-size: 0.8rem; }
             .content { padding: 0 5% 2rem; }
+            .content h2 { font-size: 1.15rem; }
+            .content p { font-size: 0.9rem; line-height: 1.7; }
+            .project-card { padding: 1.25rem; }
+            .project-card:hover { border-color: rgba(255,255,255,0.06); }
+            .cta-block .btn { width: 100%; max-width: 280px; justify-content: center; }
+            .cta-block .btn:hover { transform: none; }
+            footer { padding: 1rem 5% 1.25rem; }
+            .footer-links { gap: 1rem; }
+        }
+
+        /* Small phones */
+        @media (max-width: 400px) {
+            .agis-hero h1 { font-size: 1.5rem; }
+            .agis-hero .lead { font-size: 0.88rem; }
+            .logo-text { font-size: 1.25rem; }
+            .content p { font-size: 0.85rem; }
+            .project-info p { font-size: 0.8rem; }
         }
     </style>
 </head>
@@ -572,6 +625,7 @@ const AGIS_PAGE = `
             <span class="logo-mark">AGIS</span>
             <span class="logo-text">Jarvis</span>
         </a>
+        <button class="menu-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">&#9776;</button>
         <ul class="nav-links">
             <li><a href="/#features">Features</a></li>
             <li><a href="/agis">AGIS</a></li>

@@ -167,6 +167,19 @@ const LANDING_PAGE = `
 
         .nav-links a:hover { color: #fff; }
 
+        .menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 1.4rem;
+            cursor: pointer;
+            margin-left: auto;
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        .menu-toggle:hover { color: #fff; }
+
         .page {
             flex: 1;
             display: flex;
@@ -531,19 +544,70 @@ const LANDING_PAGE = `
             transform: translateY(0);
         }
 
-        /* Responsive */
+        /* Tablet */
+        @media (max-width: 1024px) {
+            .hero h1 { font-size: 2.5rem; }
+            .stats-grid { gap: 2.5rem; }
+            .features-grid { grid-template-columns: repeat(2, 1fr); }
+            .about-section p { max-width: 100%; }
+        }
+
+        /* Mobile */
         @media (max-width: 768px) {
             .hero { padding: 2.5rem 5% 1.5rem; }
-            .hero h1 { font-size: 2rem; }
-            .hero p { font-size: 1rem; }
-            .hero-glow { width: 350px; height: 250px; }
-            .nav-links { display: none; }
-            .stats-grid { gap: 1.5rem; }
+            .hero h1 { font-size: 1.85rem; line-height: 1.2; }
+            .hero p { font-size: 0.95rem; line-height: 1.6; }
+            .hero-glow { width: 300px; height: 200px; }
+            .menu-toggle { display: block; }
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0; right: 0;
+                background: #000;
+                border-bottom: 1px solid rgba(255,255,255,0.06);
+                flex-direction: column;
+                padding: 1rem 5%;
+                gap: 0.75rem;
+            }
+            .nav-links.open { display: flex; }
+            nav { position: relative; }
+            .cta-buttons { flex-direction: column; align-items: center; }
+            .btn { width: 100%; max-width: 280px; justify-content: center; }
+            .cta-subtext { font-size: 0.78rem; }
+            .cta-subtext span { display: block; margin: 0.2rem 0; }
+            .stats-grid { gap: 1.25rem; }
             .stat-number { font-size: 1.75rem; }
+            .stat-label { font-size: 0.78rem; }
             .features { padding: 2rem 5%; }
             .features h2 { font-size: 1.25rem; }
-            .steps { grid-template-columns: 1fr; gap: 1rem; }
+            .features-grid { grid-template-columns: 1fr; }
+            .feature-card { padding: 1.25rem; }
+            .feature-card:hover { transform: none; }
+            .how-it-works { padding: 2rem 5%; }
+            .how-it-works h2 { font-size: 1.25rem; }
+            .steps { grid-template-columns: 1fr; gap: 0.75rem; }
+            .step { padding: 1rem; }
+            .tech-section { padding: 1.5rem 5%; }
+            .tech-section h2 { font-size: 1.25rem; }
+            .tech-tag { font-size: 0.75rem; padding: 0.35rem 0.65rem; }
             .about-section { padding: 2rem 5%; }
+            .about-section h2 { font-size: 1.25rem; }
+            .about-section p { font-size: 0.9rem; line-height: 1.7; text-align: left; max-width: 100%; }
+            footer { padding: 1rem 5% 1.25rem; }
+            .footer-links { gap: 1rem; }
+        }
+
+        /* Small phones */
+        @media (max-width: 400px) {
+            .hero h1 { font-size: 1.5rem; }
+            .hero p { font-size: 0.9rem; }
+            .hero-glow { width: 250px; height: 160px; }
+            .logo-text { font-size: 1.25rem; }
+            .stat-number { font-size: 1.5rem; }
+            .stats-grid { gap: 1rem; }
+            .feature-card p { font-size: 0.85rem; }
+            .about-section p { font-size: 0.85rem; }
         }
     </style>
 </head>
@@ -554,6 +618,7 @@ const LANDING_PAGE = `
             <span class="logo-mark">AGIS</span>
             <span class="logo-text">Jarvis</span>
         </a>
+        <button class="menu-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">&#9776;</button>
         <ul class="nav-links">
             <li><a href="#features">Features</a></li>
             <li><a href="#about">About</a></li>
@@ -779,6 +844,11 @@ const LANDING_PAGE = `
         document.querySelectorAll('.feature-card, .how-it-works, .step, .tech-section, .about-section').forEach(el => {
             el.classList.add('scroll-reveal');
             scrollObserver.observe(el);
+        });
+
+        // Close mobile nav on link tap
+        document.querySelectorAll('.nav-links a').forEach(a => {
+            a.addEventListener('click', () => document.querySelector('.nav-links').classList.remove('open'));
         });
     </script>
 </body>
