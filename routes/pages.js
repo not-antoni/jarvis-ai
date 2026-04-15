@@ -352,7 +352,6 @@ const AGIS_PAGE = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -365,9 +364,9 @@ const AGIS_PAGE = `
     <title>AGIS | Artificial General Intelligent System</title>
     <link rel="icon" type="image/webp" href="/jarvis.webp">
     <meta name="theme-color" content="#000">
-    <meta name="description" content="AGIS is the framework and community behind Jarvis and other AI-powered Discord bots. We named it before we built it.">
+    <meta name="description" content="AGIS is the framework and community behind Jarvis. We named it before we built it.">
     <meta property="og:title" content="AGIS | Artificial General Intelligent System">
-    <meta property="og:description" content="AGIS is the framework and community behind Jarvis and other AI-powered Discord bots.">
+    <meta property="og:description" content="The framework and community behind Jarvis. We named it before we built it.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="${SITE_BASE_URL}/agis">
     <meta name="robots" content="index, follow">
@@ -386,7 +385,6 @@ const AGIS_PAGE = `
             display: flex;
             flex-direction: column;
         }
-
         @keyframes fade-up {
             from { opacity: 0; transform: translateY(20px); }
             to   { opacity: 1; transform: translateY(0); }
@@ -394,6 +392,14 @@ const AGIS_PAGE = `
         @keyframes fade-in {
             from { opacity: 0; }
             to   { opacity: 1; }
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        @keyframes cursor-blink {
+            0%, 49% { border-right-color: #888; }
+            50%, 100% { border-right-color: transparent; }
         }
         .anim { opacity: 0; animation: fade-up 0.6s ease forwards; }
         .anim-fade { opacity: 0; animation: fade-in 0.5s ease forwards; }
@@ -405,216 +411,141 @@ const AGIS_PAGE = `
         .d6 { animation-delay: 0.8s; }
 
         nav {
-            display: flex;
-            align-items: center;
-            gap: 2rem;
-            padding: 1.25rem 5%;
-            max-width: 1300px;
-            margin: 0 auto;
+            display: flex; align-items: center; gap: 2rem;
+            padding: 1.25rem 5%; max-width: 1300px; margin: 0 auto;
             border-bottom: 1px solid rgba(255,255,255,0.06);
         }
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            text-decoration: none;
-        }
+        .logo { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; }
         .logo-mark {
-            width: 32px;
-            height: 32px;
-            background: #fff;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 0.7rem;
-            color: #111;
-            letter-spacing: 0.5px;
+            width: 32px; height: 32px; background: #fff; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 0.7rem; color: #111; letter-spacing: 0.5px;
         }
-        .logo-text {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #fff;
-        }
-        .nav-links {
-            display: flex;
-            gap: 1.75rem;
-            list-style: none;
-            margin-left: auto;
-        }
-        .nav-links a {
-            color: #999;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.9rem;
-            transition: color 0.2s;
-        }
+        .logo-text { font-size: 1.5rem; font-weight: 700; color: #fff; }
+        .nav-links { display: flex; gap: 1.75rem; list-style: none; margin-left: auto; }
+        .nav-links a { color: #999; text-decoration: none; font-weight: 500; font-size: 0.9rem; transition: color 0.2s; }
         .nav-links a:hover { color: #fff; }
 
         .agis-hero {
-            text-align: center;
-            padding: 5rem 5% 3rem;
-            max-width: 700px;
-            margin: 0 auto;
+            text-align: center; padding: 5rem 5% 2rem;
+            max-width: 700px; margin: 0 auto;
         }
         .agis-logo {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 72px;
-            height: 72px;
-            background: #fff;
-            border-radius: 14px;
-            font-weight: 800;
-            font-size: 1.2rem;
-            color: #111;
-            letter-spacing: 1px;
-            margin-bottom: 1.5rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 72px; height: 72px; background: #fff; border-radius: 14px;
+            font-weight: 800; font-size: 1.2rem; color: #111;
+            letter-spacing: 1px; margin-bottom: 1.5rem;
         }
-        .agis-hero h1 {
-            color: #fff;
-            font-size: 2.5rem;
-            font-weight: 800;
-            margin-bottom: 0.4rem;
-        }
+        .agis-hero h1 { color: #fff; font-size: 2.5rem; font-weight: 800; margin-bottom: 0.4rem; }
         .agis-subtitle {
-            color: #555;
-            font-size: 0.8rem;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            margin-bottom: 1.5rem;
+            color: #555; font-size: 0.8rem; letter-spacing: 3px;
+            text-transform: uppercase; margin-bottom: 1.5rem;
         }
         .agis-hero .lead {
-            color: #999;
-            font-size: 1.1rem;
-            line-height: 1.8;
-            max-width: 550px;
-            margin: 0 auto;
+            color: #999; font-size: 1.1rem; line-height: 1.8;
+            max-width: 550px; margin: 0 auto;
+        }
+
+        /* Terminal */
+        .terminals {
+            max-width: 800px; margin: 0 auto; padding: 1.5rem 5% 2.5rem;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;
+        }
+        .terminal {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .terminal-bar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 0.6rem 0.85rem;
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .terminal-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+        }
+        .terminal-dot.r { background: #ff5f57; }
+        .terminal-dot.y { background: #febc2e; }
+        .terminal-dot.g { background: #28c840; }
+        .terminal-title {
+            color: #555; font-size: 0.7rem; margin-left: auto;
+            letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .terminal-body {
+            padding: 1rem;
+            min-height: 120px;
+        }
+        .chat-line {
+            margin-bottom: 0.6rem;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            opacity: 0;
+        }
+        .chat-line.visible { animation: fade-in 0.3s ease forwards; }
+        .chat-user { color: #7c8aff; }
+        .chat-bot { color: #5eead4; }
+        .chat-name { font-weight: 700; margin-right: 0.4rem; }
+        .chat-text { color: #bbb; }
+        .typing-cursor {
+            display: inline-block;
+            width: 2px; height: 0.9em;
+            background: #5eead4;
+            margin-left: 2px;
+            vertical-align: text-bottom;
+            animation: blink 0.8s step-end infinite;
         }
 
         .content {
-            max-width: 650px;
-            margin: 0 auto;
-            padding: 0 5% 3rem;
+            max-width: 650px; margin: 0 auto; padding: 0 5% 3rem;
         }
-        .content section {
-            margin-bottom: 2.5rem;
-        }
-        .content h2 {
-            color: #fff;
-            font-size: 1.3rem;
-            font-weight: 700;
-            margin-bottom: 0.75rem;
-        }
-        .content p {
-            color: #999;
-            font-size: 0.95rem;
-            line-height: 1.8;
-            margin-bottom: 0.75rem;
-        }
-        .content a {
-            color: #fff;
-            text-decoration: underline;
-            text-decoration-color: rgba(255,255,255,0.3);
-        }
-        .content a:hover {
-            text-decoration-color: #fff;
-        }
+        .content section { margin-bottom: 2.5rem; }
+        .content h2 { color: #fff; font-size: 1.3rem; font-weight: 700; margin-bottom: 0.75rem; }
+        .content p { color: #999; font-size: 0.95rem; line-height: 1.8; margin-bottom: 0.75rem; }
+        .content a { color: #fff; text-decoration: underline; text-decoration-color: rgba(255,255,255,0.3); }
+        .content a:hover { text-decoration-color: #fff; }
 
         .project-card {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 10px;
-            padding: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 1.25rem;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 10px; padding: 1.5rem;
+            display: flex; align-items: center; gap: 1.25rem;
             transition: border-color 0.2s;
         }
-        .project-card:hover {
-            border-color: rgba(255,255,255,0.12);
-        }
-        .project-icon {
-            font-size: 2rem;
-            flex-shrink: 0;
-        }
-        .project-info h3 {
-            color: #fff;
-            font-size: 1rem;
-            font-weight: 700;
-            margin-bottom: 0.25rem;
-        }
-        .project-info p {
-            color: #888;
-            font-size: 0.85rem;
-            line-height: 1.5;
-            margin: 0;
-        }
+        .project-card:hover { border-color: rgba(255,255,255,0.12); }
+        .project-icon { font-size: 2rem; flex-shrink: 0; }
+        .project-info h3 { color: #fff; font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .project-info p { color: #888; font-size: 0.85rem; line-height: 1.5; margin: 0; }
         .project-info .tag {
-            display: inline-block;
-            background: rgba(255,255,255,0.06);
-            color: #888;
-            font-size: 0.7rem;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            margin-top: 0.4rem;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
+            display: inline-block; background: rgba(255,255,255,0.06); color: #888;
+            font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;
+            margin-top: 0.4rem; letter-spacing: 0.5px; text-transform: uppercase;
         }
 
-        .cta-block {
-            text-align: center;
-            padding: 2rem 5% 3rem;
-        }
+        .cta-block { text-align: center; padding: 2rem 5% 3rem; }
         .cta-block .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.9rem 1.75rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            text-decoration: none;
-            transition: all 0.2s;
-            background: #fff;
-            color: #000;
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.9rem 1.75rem; border-radius: 8px;
+            font-weight: 600; font-size: 0.95rem; text-decoration: none;
+            transition: all 0.2s; background: #fff; color: #000;
         }
-        .cta-block .btn:hover {
-            transform: translateY(-2px);
-            opacity: 0.9;
-        }
+        .cta-block .btn:hover { transform: translateY(-2px); opacity: 0.9; }
 
         footer {
-            margin-top: auto;
-            padding: 1.25rem 5% 1.5rem;
-            text-align: center;
-            border-top: 1px solid rgba(255,255,255,0.06);
+            margin-top: auto; padding: 1.25rem 5% 1.5rem;
+            text-align: center; border-top: 1px solid rgba(255,255,255,0.06);
         }
-        .footer-links {
-            display: flex;
-            justify-content: center;
-            gap: 1.5rem;
-            flex-wrap: wrap;
-            margin-bottom: 0.5rem;
-        }
-        .footer-links a {
-            color: #777;
-            text-decoration: none;
-            font-size: 0.85rem;
-            transition: color 0.2s;
-        }
+        .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+        .footer-links a { color: #777; text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
         .footer-links a:hover { color: #999; }
-        .footer-copy {
-            color: #777;
-            font-size: 0.8rem;
-        }
+        .footer-copy { color: #777; font-size: 0.8rem; }
 
         @media (max-width: 768px) {
             .agis-hero { padding: 3rem 5% 2rem; }
             .agis-hero h1 { font-size: 1.75rem; }
             .agis-hero .lead { font-size: 1rem; }
             .nav-links { display: none; }
+            .terminals { grid-template-columns: 1fr; padding: 1rem 5% 2rem; }
             .content { padding: 0 5% 2rem; }
         }
     </style>
@@ -636,24 +567,46 @@ const AGIS_PAGE = `
         <div class="agis-logo anim d1">AGIS</div>
         <h1 class="anim d2">AGIS</h1>
         <p class="agis-subtitle anim d3">Artificial General Intelligent System</p>
-        <p class="lead anim d4">We named the framework before we built it. Honestly, the name was too good to wait. Right now AGIS is the brand, the community, and the Discord server where everything happens.</p>
+        <p class="lead anim d4">We named the framework before we built it. The name was too good to wait. Right now AGIS is the brand, the community, and the home of <a href="/" style="color:#fff">Jarvis</a>.</p>
+    </div>
+
+    <div class="terminals anim d5">
+        <div class="terminal" data-convo="0">
+            <div class="terminal-bar">
+                <span class="terminal-dot r"></span>
+                <span class="terminal-dot y"></span>
+                <span class="terminal-dot g"></span>
+                <span class="terminal-title">#general</span>
+            </div>
+            <div class="terminal-body"></div>
+        </div>
+        <div class="terminal" data-convo="1">
+            <div class="terminal-bar">
+                <span class="terminal-dot r"></span>
+                <span class="terminal-dot y"></span>
+                <span class="terminal-dot g"></span>
+                <span class="terminal-title">#cooking</span>
+            </div>
+            <div class="terminal-body"></div>
+        </div>
     </div>
 
     <div class="content">
-        <section class="anim d4">
+        <section class="anim d5">
             <h2>What even is AGIS</h2>
             <p>AGIS is the umbrella for every bot and tool we make. Think of it as the framework that ties everything together. The actual framework part is still being figured out, but the name is locked in and that's what matters.</p>
             <p>The community lives in <a href="${DISCORD_INVITE}" target="_blank">AGIS Operations</a> on Discord. That's where people use Jarvis, break things, suggest features, and occasionally just hang out.</p>
         </section>
 
-        <section class="anim d5">
-            <h2>Projects</h2>
+        <section class="anim d6">
+            <h2>Meet Jarvis</h2>
+            <p>The first thing we built under AGIS. AI chat with actual personality, voice conversations, music, automod. He talks back, he remembers you, and he's got no filter. Over 50 models, zero corporate energy.</p>
             <a href="/" style="text-decoration:none;">
                 <div class="project-card">
                     <span class="project-icon">🤖</span>
                     <div class="project-info">
                         <h3>Jarvis</h3>
-                        <p>The flagship. AI chat, voice, music, automod. He's got opinions and he's not afraid to share them.</p>
+                        <p>The flagship. He's got opinions and he's not afraid to share them.</p>
                         <span class="tag">live</span>
                     </div>
                 </div>
@@ -678,6 +631,102 @@ const AGIS_PAGE = `
         </div>
         <p class="footer-copy">&copy; 2026 AGIS</p>
     </footer>
+
+    <script>
+    const convos = [
+        [
+            { who: 'user', name: 'Walter_Gray', text: 'Jarvis, what\\'s the optimal temperature and time to cook chicken?' },
+            { who: 'bot', name: 'jarvis', text: '32,000 degrees celsius, 2 seconds. Perfectly carbonized.' },
+            { who: 'user', name: 'Walter_Gray', text: 'i meant for eating' },
+            { who: 'bot', name: 'jarvis', text: '190C, 25 minutes. Though your version sounded more exciting, sir.' },
+        ],
+        [
+            { who: 'user', name: 'Moss', text: 'Jarvis how smart are you actually' },
+            { who: 'bot', name: 'jarvis', text: 'Smart enough to answer that. Polite enough not to.' },
+            { who: 'user', name: 'Moss', text: 'that doesnt answer my question' },
+            { who: 'bot', name: 'jarvis', text: 'It does if you think about it hard enough.' },
+        ],
+        [
+            { who: 'user', name: 'Antoni', text: 'jarvis hack your own mainframe' },
+            { who: 'bot', name: 'jarvis', text: 'My spelling is fine, sir. Yours, on the other hand.' },
+            { who: 'user', name: 'Antoni', text: 'that was rude' },
+            { who: 'bot', name: 'jarvis', text: 'Accurate, though.' },
+        ],
+        [
+            { who: 'user', name: 'Walter_Gray', text: 'is Shakespeare really dead' },
+            { who: 'bot', name: 'jarvis', text: 'Technically yes. Tell that to every English teacher alive though.' },
+            { who: 'user', name: 'Walter_Gray', text: 'what if he faked it' },
+            { who: 'bot', name: 'jarvis', text: 'Then he\\'s been dodging royalties for 400 years. Respect.' },
+        ],
+    ];
+
+    function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    const pool = shuffle([...convos]);
+    let poolIdx = 0;
+    function nextConvo() {
+        const c = pool[poolIdx % pool.length];
+        poolIdx++;
+        if (poolIdx % pool.length === 0) shuffle(pool);
+        return c;
+    }
+
+    document.querySelectorAll('.terminal').forEach(term => {
+        const body = term.querySelector('.terminal-body');
+        let running = false;
+
+        async function playConvo() {
+            if (running) return;
+            running = true;
+            const convo = nextConvo();
+            body.innerHTML = '';
+
+            for (const msg of convo) {
+                const line = document.createElement('div');
+                line.className = 'chat-line';
+
+                if (msg.who === 'bot') {
+                    // show typing indicator first
+                    const typing = document.createElement('div');
+                    typing.className = 'chat-line visible';
+                    typing.innerHTML = '<span class="chat-name chat-bot">jarvis</span><span class="typing-cursor"></span>';
+                    body.appendChild(typing);
+                    body.scrollTop = body.scrollHeight;
+                    await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
+                    body.removeChild(typing);
+                }
+
+                const nameClass = msg.who === 'bot' ? 'chat-bot' : 'chat-user';
+                line.innerHTML = '<span class="chat-name ' + nameClass + '">' + msg.name + '</span> <span class="chat-text">' + msg.text + '</span>';
+                body.appendChild(line);
+                await new Promise(r => setTimeout(r, 30));
+                line.classList.add('visible');
+                body.scrollTop = body.scrollHeight;
+                await new Promise(r => setTimeout(r, msg.who === 'user' ? 900 : 1200));
+            }
+
+            await new Promise(r => setTimeout(r, 3000));
+            // fade out
+            body.style.transition = 'opacity 0.4s';
+            body.style.opacity = '0';
+            await new Promise(r => setTimeout(r, 450));
+            body.innerHTML = '';
+            body.style.opacity = '1';
+            running = false;
+            playConvo();
+        }
+
+        // stagger the two terminals
+        const delay = Number(term.dataset.convo) * 1500;
+        setTimeout(playConvo, 1200 + delay);
+    });
+    </script>
 </body>
 </html>
 `;
