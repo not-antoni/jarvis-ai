@@ -214,7 +214,7 @@ const LANDING_PAGE = `
 
         .hero p {
             font-size: 1.15rem;
-            color: #999;
+            color: #ccc;
             margin-bottom: 2rem;
             line-height: 1.7;
             max-width: 550px;
@@ -233,7 +233,7 @@ const LANDING_PAGE = `
         }
 
         .cta-subtext {
-            color: #777;
+            color: #aaa;
             font-size: 0.85rem;
             margin-top: 0.75rem;
             position: relative;
@@ -267,7 +267,7 @@ const LANDING_PAGE = `
 
         .btn-secondary {
             background: transparent;
-            color: #999;
+            color: #ccc;
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
@@ -305,7 +305,7 @@ const LANDING_PAGE = `
         }
 
         .stat-label {
-            color: #888;
+            color: #aaa;
             font-size: 0.85rem;
             margin-top: 0.25rem;
         }
@@ -326,18 +326,18 @@ const LANDING_PAGE = `
         }
 
         .footer-links a {
-            color: #777;
+            color: #aaa;
             text-decoration: none;
             font-size: 0.85rem;
             transition: color 0.2s;
         }
 
         .footer-links a:hover {
-            color: #999;
+            color: #fff;
         }
 
         .footer-copy {
-            color: #777;
+            color: #aaa;
             font-size: 0.8rem;
         }
 
@@ -410,9 +410,114 @@ const LANDING_PAGE = `
         }
 
         .feature-card p {
-            color: #999;
+            color: #bbb;
             font-size: 0.9rem;
             line-height: 1.6;
+        }
+
+        /* How it works */
+        .how-it-works {
+            padding: 3rem 5%;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .how-it-works h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+        .step {
+            text-align: center;
+            padding: 1.25rem;
+        }
+        .step-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.9rem;
+            margin-bottom: 0.75rem;
+        }
+        .step h3 {
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 0.4rem;
+        }
+        .step p {
+            color: #bbb;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        /* About / text sections */
+        .about-section {
+            padding: 3rem 5%;
+            max-width: 750px;
+            margin: 0 auto;
+        }
+        .about-section h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1.25rem;
+        }
+        .about-section p {
+            color: #bbb;
+            font-size: 0.95rem;
+            line-height: 1.8;
+            margin-bottom: 1rem;
+            text-align: center;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .about-section a {
+            color: #fff;
+            text-decoration: underline;
+            text-decoration-color: rgba(255,255,255,0.3);
+        }
+        .about-section a:hover {
+            text-decoration-color: #fff;
+        }
+
+        /* Tech grid */
+        .tech-section {
+            padding: 2rem 5%;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .tech-section h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .tech-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            justify-content: center;
+        }
+        .tech-tag {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #ccc;
+            font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
         }
 
         /* Responsive */
@@ -426,7 +531,8 @@ const LANDING_PAGE = `
             .stat-number { font-size: 1.75rem; }
             .features { padding: 2rem 5%; }
             .features h2 { font-size: 1.25rem; }
-            .agis-section { padding: 2rem 5%; }
+            .steps { grid-template-columns: 1fr; gap: 1rem; }
+            .about-section { padding: 2rem 5%; }
         }
     </style>
 </head>
@@ -439,6 +545,7 @@ const LANDING_PAGE = `
         </a>
         <ul class="nav-links">
             <li><a href="#features">Features</a></li>
+            <li><a href="#about">About</a></li>
             <li><a href="/agis">AGIS</a></li>
             <li><a href="${DISCORD_INVITE}" target="_blank">Support</a></li>
         </ul>
@@ -506,6 +613,61 @@ const LANDING_PAGE = `
                     <p>Spam, toxicity, sketchy links. Handled. You can stop babysitting your server now.</p>
                 </div>
             </div>
+        </section>
+
+        <section class="how-it-works">
+            <h2>How It Works</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <h3>Invite</h3>
+                    <p>Add Jarvis to your server. Takes about 30 seconds. No config needed, he just shows up and starts working.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <h3>Talk</h3>
+                    <p>Mention him, say his name, use slash commands. He picks up context from the conversation and actually remembers who you are.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <h3>Enjoy</h3>
+                    <p>He handles AI chat, voice calls, music, and moderation. You just use your server like normal. He fits in.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="tech-section">
+            <h2>Under the Hood</h2>
+            <div class="tech-grid">
+                <span class="tech-tag">Node.js</span>
+                <span class="tech-tag">Discord.js</span>
+                <span class="tech-tag">50+ AI Models</span>
+                <span class="tech-tag">Gemini</span>
+                <span class="tech-tag">Mistral</span>
+                <span class="tech-tag">DeepSeek</span>
+                <span class="tech-tag">Llama</span>
+                <span class="tech-tag">Qwen</span>
+                <span class="tech-tag">Gemma</span>
+                <span class="tech-tag">GPT</span>
+                <span class="tech-tag">Speech-to-Text</span>
+                <span class="tech-tag">Text-to-Speech</span>
+                <span class="tech-tag">Encrypted Memory</span>
+                <span class="tech-tag">Auto-Failover</span>
+                <span class="tech-tag">Open Source</span>
+            </div>
+        </section>
+
+        <section class="about-section" id="about">
+            <h2>About AGIS</h2>
+            <p>AGIS stands for Artificial General Intelligent System. It's an independent brand and framework created by a solo developer. Jarvis is the first project built under AGIS, and right now it's the main one.</p>
+            <p>This isn't a startup with funding rounds and a slide deck. It's one person building AI tools that people actually use every day. Jarvis runs on over 1,000 Discord servers, handles thousands of conversations, and is completely free. No premium tiers, no paywalls, no bait-and-switch.</p>
+            <p>The AGIS community lives on Discord in a server called <a href="${DISCORD_INVITE}" target="_blank">AGIS Operations</a>. That's where users hang out, report bugs, suggest features, and occasionally just talk to Jarvis for fun. The whole project is <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">open source on GitHub</a>.</p>
+        </section>
+
+        <section class="about-section">
+            <h2>Contact</h2>
+            <p>For questions, partnerships, or anything else: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
+            <p>Or just join the <a href="${DISCORD_INVITE}" target="_blank">Discord</a> and say hi. That works too.</p>
         </section>
 
     </main>

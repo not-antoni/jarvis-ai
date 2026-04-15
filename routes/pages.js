@@ -438,11 +438,11 @@ const AGIS_PAGE = `
         }
         .agis-hero h1 { color: #fff; font-size: 2.5rem; font-weight: 800; margin-bottom: 0.4rem; }
         .agis-subtitle {
-            color: #555; font-size: 0.8rem; letter-spacing: 3px;
+            color: #888; font-size: 0.8rem; letter-spacing: 3px;
             text-transform: uppercase; margin-bottom: 1.5rem;
         }
         .agis-hero .lead {
-            color: #999; font-size: 1.1rem; line-height: 1.8;
+            color: #ccc; font-size: 1.1rem; line-height: 1.8;
             max-width: 550px; margin: 0 auto;
         }
 
@@ -502,7 +502,7 @@ const AGIS_PAGE = `
         }
         .content section { margin-bottom: 2.5rem; }
         .content h2 { color: #fff; font-size: 1.3rem; font-weight: 700; margin-bottom: 0.75rem; }
-        .content p { color: #999; font-size: 0.95rem; line-height: 1.8; margin-bottom: 0.75rem; }
+        .content p { color: #bbb; font-size: 0.95rem; line-height: 1.8; margin-bottom: 0.75rem; }
         .content a { color: #fff; text-decoration: underline; text-decoration-color: rgba(255,255,255,0.3); }
         .content a:hover { text-decoration-color: #fff; }
 
@@ -515,7 +515,7 @@ const AGIS_PAGE = `
         .project-card:hover { border-color: rgba(255,255,255,0.12); }
         .project-icon { font-size: 2rem; flex-shrink: 0; }
         .project-info h3 { color: #fff; font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem; }
-        .project-info p { color: #888; font-size: 0.85rem; line-height: 1.5; margin: 0; }
+        .project-info p { color: #bbb; font-size: 0.85rem; line-height: 1.5; margin: 0; }
         .project-info .tag {
             display: inline-block; background: rgba(255,255,255,0.06); color: #888;
             font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;
@@ -536,9 +536,9 @@ const AGIS_PAGE = `
             text-align: center; border-top: 1px solid rgba(255,255,255,0.06);
         }
         .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
-        .footer-links a { color: #777; text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
-        .footer-links a:hover { color: #999; }
-        .footer-copy { color: #777; font-size: 0.8rem; }
+        .footer-links a { color: #aaa; text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
+        .footer-links a:hover { color: #fff; }
+        .footer-copy { color: #aaa; font-size: 0.8rem; }
 
         @media (max-width: 768px) {
             .agis-hero { padding: 3rem 5% 2rem; }
