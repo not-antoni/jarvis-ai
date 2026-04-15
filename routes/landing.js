@@ -64,7 +64,49 @@ const LANDING_PAGE = `
             display: flex;
             flex-direction: column;
         }
-        
+
+        /* ---- Entrance Animations ---- */
+        @keyframes fade-up {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+        @keyframes scale-in {
+            from { opacity: 0; transform: scale(0.92); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes gradient-shift {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        @keyframes glow-pulse {
+            0%, 100% { opacity: 0.5; }
+            50%      { opacity: 1; }
+        }
+
+        .anim-fade-up {
+            opacity: 0;
+            animation: fade-up 0.7s ease forwards;
+        }
+        .anim-fade-in {
+            opacity: 0;
+            animation: fade-in 0.6s ease forwards;
+        }
+        .anim-scale-in {
+            opacity: 0;
+            animation: scale-in 0.5s ease forwards;
+        }
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.25s; }
+        .delay-3 { animation-delay: 0.4s; }
+        .delay-4 { animation-delay: 0.55s; }
+        .delay-5 { animation-delay: 0.7s; }
+        .delay-6 { animation-delay: 0.85s; }
+
         /* Navigation */
         .nav-wrap {
             border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -78,21 +120,43 @@ const LANDING_PAGE = `
             max-width: 1300px;
             margin: 0 auto;
         }
-        
+
         .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            text-decoration: none;
+        }
+
+        .logo-mark {
+            width: 32px;
+            height: 32px;
+            background: #fff;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.7rem;
+            color: #111;
+            letter-spacing: 0.5px;
+            flex-shrink: 0;
+        }
+
+        .logo-text {
             font-size: 1.5rem;
             font-weight: 700;
             color: #fff;
-            text-decoration: none;
         }
-        
+
         .nav-links {
             display: flex;
             gap: 1.75rem;
             list-style: none;
             margin-left: auto;
+            align-items: center;
         }
-        
+
         .nav-links a {
             color: #999;
             text-decoration: none;
@@ -100,7 +164,7 @@ const LANDING_PAGE = `
             font-size: 0.9rem;
             transition: color 0.2s;
         }
-        
+
         .nav-links a:hover { color: #fff; }
 
         .page {
@@ -108,23 +172,37 @@ const LANDING_PAGE = `
             display: flex;
             flex-direction: column;
         }
-        
+
         /* Hero Section */
         .hero {
             text-align: center;
             padding: 4rem 5% 2rem;
             max-width: 800px;
             margin: 0 auto;
+            position: relative;
         }
-        
+
+        .hero-glow {
+            position: absolute;
+            top: -40%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 400px;
+            background: radial-gradient(ellipse, rgba(167,139,250,0.12) 0%, rgba(96,165,250,0.08) 40%, transparent 70%);
+            pointer-events: none;
+            animation: glow-pulse 6s ease-in-out infinite;
+        }
+
         .hero h1 {
             font-size: 3rem;
             font-weight: 800;
             margin-bottom: 1rem;
             color: #fff;
             line-height: 1.1;
+            position: relative;
         }
-        
+
         .hero h1 .accent {
             background: linear-gradient(90deg, #a78bfa, #60a5fa, #a78bfa, #60a5fa);
             background-size: 200% 100%;
@@ -134,12 +212,6 @@ const LANDING_PAGE = `
             animation: gradient-shift 4s ease infinite;
         }
 
-        @keyframes gradient-shift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        
         .hero p {
             font-size: 1.15rem;
             color: #999;
@@ -148,26 +220,29 @@ const LANDING_PAGE = `
             max-width: 550px;
             margin-left: auto;
             margin-right: auto;
+            position: relative;
         }
-        
+
         .cta-buttons {
             display: flex;
             gap: 1rem;
             justify-content: center;
             flex-wrap: wrap;
             margin-bottom: 1rem;
+            position: relative;
         }
-        
+
         .cta-subtext {
             color: #777;
             font-size: 0.85rem;
             margin-top: 0.75rem;
+            position: relative;
         }
-        
+
         .cta-subtext span {
             margin: 0 0.5rem;
         }
-        
+
         .btn {
             display: inline-flex;
             align-items: center;
@@ -179,7 +254,7 @@ const LANDING_PAGE = `
             text-decoration: none;
             transition: all 0.2s ease;
         }
-        
+
         .btn-primary {
             background: #fff;
             color: #000;
@@ -189,19 +264,19 @@ const LANDING_PAGE = `
             transform: translateY(-2px);
             opacity: 0.9;
         }
-        
+
         .btn-secondary {
             background: transparent;
             color: #999;
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
-        
+
         .btn-secondary:hover {
             background: rgba(255, 255, 255, 0.05);
             color: #fff;
             border-color: rgba(255, 255, 255, 0.25);
         }
-        
+
         /* Stats Section */
         .stats {
             padding: 2rem 5%;
@@ -209,7 +284,7 @@ const LANDING_PAGE = `
             border-top: 1px solid rgba(255,255,255,0.04);
             border-bottom: 1px solid rgba(255,255,255,0.04);
         }
-        
+
         .stats-grid {
             display: flex;
             justify-content: center;
@@ -218,17 +293,17 @@ const LANDING_PAGE = `
             max-width: 900px;
             margin: 0 auto;
         }
-        
+
         .stat-item {
             text-align: center;
         }
-        
+
         .stat-number {
             font-size: 2.25rem;
             font-weight: 800;
             color: #fff;
         }
-        
+
         .stat-label {
             color: #888;
             font-size: 0.85rem;
@@ -265,7 +340,7 @@ const LANDING_PAGE = `
             color: #777;
             font-size: 0.8rem;
         }
-        
+
         .copy-toast {
             position: fixed;
             left: 50%;
@@ -287,7 +362,7 @@ const LANDING_PAGE = `
             opacity: 1;
             transform: translate(-50%, 0);
         }
-        
+
         /* Features Section */
         .features {
             padding: 3rem 5%;
@@ -314,6 +389,12 @@ const LANDING_PAGE = `
             border: 1px solid rgba(255,255,255,0.06);
             border-radius: 10px;
             padding: 1.5rem;
+            transition: transform 0.25s ease, border-color 0.25s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(255,255,255,0.12);
         }
 
         .feature-icon {
@@ -334,25 +415,77 @@ const LANDING_PAGE = `
             line-height: 1.6;
         }
 
+        /* AGIS section */
+        .agis-section {
+            padding: 3rem 5%;
+            max-width: 700px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .agis-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px;
+            height: 64px;
+            background: #fff;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: #111;
+            letter-spacing: 1px;
+            margin-bottom: 1.25rem;
+        }
+
+        .agis-section h2 {
+            color: #fff;
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .agis-section .agis-full {
+            color: #666;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .agis-section p {
+            color: #999;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .hero { padding: 2.5rem 5% 1.5rem; }
             .hero h1 { font-size: 2rem; }
             .hero p { font-size: 1rem; }
+            .hero-glow { width: 350px; height: 250px; }
             .nav-links { display: none; }
             .stats-grid { gap: 1.5rem; }
             .stat-number { font-size: 1.75rem; }
             .features { padding: 2rem 5%; }
             .features h2 { font-size: 1.25rem; }
+            .agis-section { padding: 2rem 5%; }
         }
     </style>
 </head>
 <body>
-    <div class="nav-wrap">
+    <div class="nav-wrap anim-fade-in">
     <nav>
-        <a href="/" class="logo">Jarvis</a>
+        <a href="/" class="logo">
+            <span class="logo-mark">AGIS</span>
+            <span class="logo-text">Jarvis</span>
+        </a>
         <ul class="nav-links">
             <li><a href="#features">Features</a></li>
+            <li><a href="#agis">AGIS</a></li>
             <li><a href="${DISCORD_INVITE}" target="_blank">Support</a></li>
         </ul>
     </nav>
@@ -360,20 +493,21 @@ const LANDING_PAGE = `
 
     <main class="page">
         <section class="hero">
-            <h1>The Discord AI with <span class="accent">Actual Personality</span></h1>
-            <p>Stop using boring bots. Jarvis does AI chat, voice conversations, music, and AutoMod — like an actual member of your server.</p>
-            <div class="cta-buttons">
-                <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">➕ Add to Discord</a>
-                <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join A.G.I.S Operations</a>
+            <div class="hero-glow"></div>
+            <h1 class="anim-fade-up delay-1">The Discord AI with <span class="accent">Actual Personality</span></h1>
+            <p class="anim-fade-up delay-2">Stop using boring bots. Jarvis does AI chat, voice conversations, music, and AutoMod — like an actual member of your server.</p>
+            <div class="cta-buttons anim-fade-up delay-3">
+                <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">Add to Discord</a>
+                <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join AGIS Operations</a>
             </div>
-            <p class="cta-subtext">
+            <p class="cta-subtext anim-fade-in delay-4">
                 <span>✓ Free forever</span>
                 <span>✓ No credit card</span>
                 <span>✓ Set up in 2 mins</span>
             </p>
         </section>
 
-        <section class="stats">
+        <section class="stats anim-fade-in delay-5">
             <div class="stats-grid">
                 <div class="stat-item">
                     <div class="stat-number">50+</div>
@@ -419,6 +553,13 @@ const LANDING_PAGE = `
                 </div>
             </div>
         </section>
+
+        <section class="agis-section" id="agis">
+            <div class="agis-badge">AGIS</div>
+            <h2>Built by AGIS</h2>
+            <p class="agis-full">Artificial General Intelligent System</p>
+            <p>The team behind Jarvis. We build AI that actually fits into your server — not as a tool, but as a presence.</p>
+        </section>
     </main>
 
     <footer>
@@ -428,7 +569,7 @@ const LANDING_PAGE = `
             <a href="#" onclick="copyContactEmail(event)">Contact</a>
             <a href="https://github.com/not-antoni/jarvis-ai" target="_blank" rel="noopener noreferrer">GitHub</a>
         </div>
-        <p class="footer-copy">© 2026 Jarvis • Powered by caffeine.</p>
+        <p class="footer-copy">© 2026 AGIS • Powered by caffeine.</p>
     </footer>
     <div class="copy-toast" id="copyToast" aria-live="polite"></div>
     
@@ -482,6 +623,21 @@ const LANDING_PAGE = `
                 }
             } catch {}
         })();
+
+        // Scroll-triggered animations for below-the-fold sections
+        const scrollObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('anim-fade-up');
+                    scrollObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15 });
+        document.querySelectorAll('.feature-card, .agis-section').forEach(el => {
+            el.classList.remove('anim-scale-in', 'anim-fade-up');
+            el.style.opacity = '0';
+            scrollObserver.observe(el);
+        });
     </script>
 </body>
 </html>
