@@ -487,26 +487,24 @@ const AGIS_PAGE = `
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem;
         }
         .terminal {
-            background: rgba(255,255,255,0.02);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: #1a1a1d;
+            border: 1px solid rgba(255,255,255,0.06);
             border-radius: 10px;
             overflow: hidden;
         }
         .terminal-bar {
             display: flex; align-items: center; gap: 6px;
-            padding: 0.6rem 0.85rem;
-            background: rgba(255,255,255,0.03);
-            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding: 0.55rem 0.85rem;
+            background: #141416;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
         }
         .terminal-dot {
-            width: 8px; height: 8px; border-radius: 50%;
+            width: 6px; height: 6px; border-radius: 50%;
+            background: rgba(255,255,255,0.08);
         }
-        .terminal-dot.r { background: #ff5f57; }
-        .terminal-dot.y { background: #febc2e; }
-        .terminal-dot.g { background: #28c840; }
         .terminal-title {
             color: #555; font-size: 0.7rem; margin-left: auto;
-            letter-spacing: 0.5px; text-transform: uppercase;
+            font-weight: 600;
         }
         .terminal-body {
             padding: 1rem;
@@ -518,20 +516,20 @@ const AGIS_PAGE = `
         .terminal-body::-webkit-scrollbar { width: 0; }
         .terminal-body { scrollbar-width: none; }
         .chat-line {
-            margin-bottom: 0.6rem;
-            font-size: 0.85rem;
-            line-height: 1.5;
+            margin-bottom: 0.65rem;
+            font-size: 0.8rem;
+            line-height: 1.45;
             opacity: 0;
         }
         .chat-line.visible { animation: fade-in 0.3s ease forwards; }
         .chat-user { color: #7c8aff; }
-        .chat-bot { color: #5eead4; }
-        .chat-name { font-weight: 700; margin-right: 0.4rem; }
-        .chat-text { color: #bbb; }
+        .chat-bot { color: #f59e0b; }
+        .chat-name { font-weight: 700; display: block; margin-bottom: 0.1rem; font-size: 0.78rem; }
+        .chat-text { color: #aaa; }
         .typing-cursor {
             display: inline-block;
             width: 2px; height: 0.9em;
-            background: #5eead4;
+            background: #f59e0b;
             margin-left: 2px;
             vertical-align: text-bottom;
             animation: blink 0.8s step-end infinite;
@@ -651,28 +649,22 @@ const AGIS_PAGE = `
     <div class="terminals anim d5">
         <div class="terminal" data-convo="0">
             <div class="terminal-bar">
-                <span class="terminal-dot r"></span>
-                <span class="terminal-dot y"></span>
-                <span class="terminal-dot g"></span>
-                <span class="terminal-title">#general</span>
+                <span class="terminal-dot"></span>
+                <span class="terminal-title"># general</span>
             </div>
             <div class="terminal-body"></div>
         </div>
         <div class="terminal" data-convo="1">
             <div class="terminal-bar">
-                <span class="terminal-dot r"></span>
-                <span class="terminal-dot y"></span>
-                <span class="terminal-dot g"></span>
-                <span class="terminal-title">#cooking</span>
+                <span class="terminal-dot"></span>
+                <span class="terminal-title"># random</span>
             </div>
             <div class="terminal-body"></div>
         </div>
         <div class="terminal" data-convo="2">
             <div class="terminal-bar">
-                <span class="terminal-dot r"></span>
-                <span class="terminal-dot y"></span>
-                <span class="terminal-dot g"></span>
-                <span class="terminal-title">#lounge</span>
+                <span class="terminal-dot"></span>
+                <span class="terminal-title"># lounge</span>
             </div>
             <div class="terminal-body"></div>
         </div>
