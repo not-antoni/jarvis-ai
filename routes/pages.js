@@ -511,8 +511,12 @@ const AGIS_PAGE = `
             height: 170px;
             min-height: 170px;
             max-height: 170px;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
         }
+        .terminal-body::-webkit-scrollbar { width: 0; }
+        .terminal-body { scrollbar-width: none; }
         .chat-line {
             margin-bottom: 0.65rem;
             font-size: 0.8rem;
@@ -826,6 +830,7 @@ const AGIS_PAGE = `
                     typing.className = 'chat-line visible';
                     typing.innerHTML = '<span class="chat-name chat-bot">jarvis</span><span class="typing-cursor"></span>';
                     body.appendChild(typing);
+                    typing.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                     await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
                     body.removeChild(typing);
                 }
@@ -835,6 +840,7 @@ const AGIS_PAGE = `
                 body.appendChild(line);
                 await new Promise(r => setTimeout(r, 50));
                 line.classList.add('visible');
+                line.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                 await new Promise(r => setTimeout(r, msg.who === 'user' ? 1500 : 2000));
             }
 
