@@ -233,11 +233,8 @@ if (strippedContent && /\bis\s+this\s+tuff\b/i.test(strippedContent)) {
     if (limited) {return;}
 
     try {
-        const appEmojis = require('../app-emojis');
-        const emojiString = appEmojis.get('wilted_rose');
-
         await message.reply({
-            content: `Fuh naw, sir 💔 ${emojiString}`,
+            content: 'Fuh naw, sir 💔 🥀',
             allowedMentions: { parse: [] }
         });
         return; // Exit early
