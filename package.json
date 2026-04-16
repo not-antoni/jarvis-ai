@@ -59,7 +59,6 @@
     "lru-cache": "^10.2.2",
     "mongodb": "^6.19.0",
     "node-cron": "^4.2.1",
-    "node-fetch": "^2.6.7",
     "openai": "^5.20.1",
     "opusscript": "^0.1.1",
     "puppeteer": "^24.34.0",

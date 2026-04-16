@@ -300,6 +300,13 @@ client.once(Events.ClientReady, async() => {
     global.discordClient = client;
     global.discordHandlers = discordHandlers;
 
+    try {
+        const appEmojis = require('./src/services/app-emojis');
+        await appEmojis.init(client);
+    } catch (e) {
+        console.warn('[AppEmojis] init failed:', e.message);
+    }
+
     // Initialize musicManager with client
     try {
         const { musicManager } = require('./src/core/musicManager');

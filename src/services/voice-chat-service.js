@@ -12,7 +12,6 @@ const {
     entersState,
     StreamType
 } = require('@discordjs/voice');
-const { spawn } = require('node:child_process');
 const { Readable } = require('node:stream');
 const nvidiaSpeech = require('./nvidia-speech');
 const openaiStt = require('./openai-stt');
@@ -21,9 +20,28 @@ const { musicManager } = require('../core/musicManager');
 const { isCpuThrottled, getCpuFreqMHz } = require('../utils/cpu-monitor');
 const database = require('./database');
 
-const FFMPEG = process.env.FFMPEG_PATH || (() => {
-    try { return require('ffmpeg-static'); } catch { return 'ffmpeg'; }
-})();
+const {
+    VOICE_HINT,
+    cleanForTts,
+    truncateForTts,
+    isNoise,
+    containsWakeWord
+} = require('./voice/text-utils');
+const {
+    pcmEnergy,
+    sliceWav16kMono,
+    pcm48kStereoToWav16kMono,
+    audioToWav16k: audioToWav16kFn,
+    wavToPcm48kStereo
+} = require('./voice/audio-utils');
+const {
+    MAX_OPUS_PACKET_BYTES,
+    MAX_CORRUPT_OPUS_PACKETS,
+    isRecoverableOpusDecodeError,
+    isFatalOpusDecodeError,
+    loadOpusDecoderFactory,
+    getOpusBackend
+} = require('./voice/opus-decoder');
 
 // ─── Tuning ───────────────────────────────────────────────────────────────────
 const SILENCE_MS         = 3000;      // ms silence before ending capture
@@ -33,9 +51,6 @@ const MAX_RESPONSE_QUEUE = 5;         // post-STT addressed requests only
 const ACTIVE_SPEAKER_IDLE_MS = Math.max(15_000, Number(process.env.VOICE_ACTIVE_SPEAKER_IDLE_MS) || 90_000);
 const ACTIVE_SPEAKER_FOLLOWUP_MS = Math.max(5_000, Number(process.env.VOICE_ACTIVE_SPEAKER_FOLLOWUP_MS) || 30_000);
 const WAKEWORD_PROBE_MS  = Math.max(800, Number(process.env.VOICE_WAKEWORD_PROBE_MS) || 2_000);
-// STT idle timeout removed — energy gate + wake word filter already prevent unnecessary API calls
-const MAX_TTS_CHARS      = 500;
-const MIN_TRANSCRIPT_LEN = 4;
 const PLAY_TIMEOUT_MS    = 30_000;
 const STREAM_SAFETY_MS   = 60_000;    // force-close hung opus streams
 const PROCESS_SAFETY_MS  = 90_000;    // force-reset stuck processing flag
@@ -43,20 +58,7 @@ const MAX_PCM_BYTES      = 48000 * 2 * 2 * 30; // 30s of 48kHz stereo s16le (~5.
 const ECHO_COOLDOWN_MS   = 2500;               // ignore STT right after bot finishes speaking
 const MIN_PCM_ENERGY     = 300;                // skip near-silent audio (RMS threshold)
 const PROBE_COOLDOWN_MS  = 5_000;              // skip re-probing users who didn't say wake word recently
-const FFMPEG_TIMEOUT_MS  = 10_000;             // kill hung ffmpeg subprocesses
 const TTS_GAIN           = 2.8;                // boost synthesized speech over VC
-const OPUS_SAMPLE_RATE   = 48_000;
-const OPUS_CHANNELS      = 2;
-const OPUS_FRAME_SIZE    = 960;
-const MAX_OPUS_PACKET_BYTES = 4096;
-const MAX_CORRUPT_OPUS_PACKETS = 8;
-
-// Single-word noise the STT picks up from silence/background
-const NOISE_WORDS = new Set([
-    'you', 'uh', 'um', 'hmm', 'hm', 'ah', 'oh', 'mhm', 'mm',
-    'yeah', 'yep', 'nah', 'the', 'a', 'ok',
-    'bye', 'thank', 'thanks', 'so'
-]);
 
 // Channels where the bot stays connected permanently (guild → channel)
 // Configured via env: VOICE_PERSISTENT_CHANNELS=guildId:channelId,guildId:channelId
@@ -68,183 +70,12 @@ const PERSISTENT_CHANNELS = new Map(
 );
 const SILENT_LEAVE_GUILD_IDS = new Set(['858444090374881301']);
 
-// Prepended to voice input so the AI keeps replies spoken-friendly
-const VOICE_HINT = '[Voice chat — reply in 1-2 short spoken sentences. No markdown, no lists, no formatting. Be concise and conversational.]\n';
-
-let opusDecoderFactory = null;
-let opusDecoderBackend = null;
-let opusDecoderLoadError = null;
-
-// ─── Text helpers ─────────────────────────────────────────────────────────────
-
-function cleanForTts(text) {
-    return text
-        .replace(/```[\s\S]*?```/g, '')                  // ```multiline code```
-        .replace(/`([^`]+)`/g, '')                        // `inline code`
-        .replace(/\*{1,3}([^*]*)\*{1,3}/g, '$1')        // *action* **bold** ***both***
-        .replace(/\([^)]*(?:sighs?|adjusts?|pauses?|clears?|nods?|smiles?|laughs?|chuckles?|whispers?|grins?|leans?|tilts?|gestures?|waves?|bows?|glances?)[^)]*\)/gi, '') // (roleplay actions)
-        .replace(/_([^_]+)_/g, '$1')
-        .replace(/__([^_]+)__/g, '$1')
-        .replace(/~~([^~]+)~~/g, '$1')
-        .replace(/\|\|([^|]+)\|\|/g, '$1')
-        .replace(/^>+\s?/gm, '')                          // > blockquote
-        .replace(/^#{1,3}\s+/gm, '')                      // ### heading
-        .replace(/^\d+\.\s+/gm, '')                       // 1. numbered list
-        .replace(/^[-•]\s+/gm, '')                        // - or • bullet
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')          // [link](url)
-        .replace(/<@!?\d+>/g, '')                          // <@mention>
-        .replace(/<#\d+>/g, '')                            // <#channel>
-        .replace(/<a?:\w+:\d+>/g, '')                      // <:emoji:id>
-        .replace(/<t:\d+(?::[tTdDfFR])?>/g, '')            // <t:1234567890:R> Discord timestamps
-        .replace(/https?:\/\/\S+/g, '')                    // URLs
-        .replace(/—/g, ', ')                               // em-dash → pause
-        .replace(/\.{3}/g, ', ')                           // ellipsis → pause
-        .replace(/\n{2,}/g, '. ')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-}
-
-function truncateForTts(text) {
-    if (text.length <= MAX_TTS_CHARS) return text;
-    const cut = text.slice(0, MAX_TTS_CHARS);
-    const last = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! '));
-    return last > MAX_TTS_CHARS * 0.4 ? cut.slice(0, last + 1) : cut + '...';
-}
-
-function isNoise(text) {
-    if (text.length < MIN_TRANSCRIPT_LEN) return true;
-    const normalized = text.toLowerCase().replace(/[^a-z\s]/g, '').trim();
-    return NOISE_WORDS.has(normalized);
-}
-
-function pcmEnergy(buf) {
-    const step = 200; // bytes — every 100th s16le sample (2 bytes each)
-    let sum = 0;
-    let count = 0;
-    for (let i = 0; i < buf.length - 1; i += step) {
-        const s = buf.readInt16LE(i);
-        sum += s * s;
-        count++;
-    }
-    return count > 0 ? Math.sqrt(sum / count) : 0;
-}
-
 function isMusicPlaying(guildId) {
     try {
         const state = musicManager.get().getState(guildId);
-        if (!state?.player || !state.currentVideo) return false;
+        if (!state?.player || !state.currentVideo) {return false;}
         return state.player.state?.status === 'playing';
     } catch { return false; }
-}
-
-function escapeRegex(value) {
-    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function containsWakeWord(text, wakeWord) {
-    const normalizedText = String(text || '').trim();
-    const normalizedWakeWord = String(wakeWord || '').trim();
-    if (!normalizedText || !normalizedWakeWord) {
-        return false;
-    }
-
-    const pattern = new RegExp(`\\b${escapeRegex(normalizedWakeWord)}\\b`, 'i');
-    return pattern.test(normalizedText);
-}
-
-function wrapPcmAsWav(pcm, sampleRate = 16000, channels = 1, bits = 16) {
-    const header = Buffer.alloc(44);
-    const byteRate = sampleRate * channels * (bits >> 3);
-    const blockAlign = channels * (bits >> 3);
-    header.write('RIFF', 0);
-    header.writeUInt32LE(36 + pcm.length, 4);
-    header.write('WAVE', 8);
-    header.write('fmt ', 12);
-    header.writeUInt32LE(16, 16);
-    header.writeUInt16LE(1, 20);
-    header.writeUInt16LE(channels, 22);
-    header.writeUInt32LE(sampleRate, 24);
-    header.writeUInt32LE(byteRate, 28);
-    header.writeUInt16LE(blockAlign, 32);
-    header.writeUInt16LE(bits, 34);
-    header.write('data', 36);
-    header.writeUInt32LE(pcm.length, 40);
-    return Buffer.concat([header, pcm]);
-}
-
-function sliceWav16kMono(wavBuf, maxMs) {
-    if (!wavBuf?.length || wavBuf.length <= 44 || !Number.isFinite(maxMs) || maxMs <= 0) {
-        return wavBuf;
-    }
-    if (wavBuf.toString('ascii', 0, 4) !== 'RIFF') {
-        return wavBuf;
-    }
-
-    const maxDataBytes = Math.max(1, Math.floor(16_000 * 2 * (maxMs / 1000)));
-    const pcm = wavBuf.subarray(44);
-    if (pcm.length <= maxDataBytes) {
-        return wavBuf;
-    }
-
-    return wrapPcmAsWav(pcm.subarray(0, maxDataBytes), 16_000, 1, 16);
-}
-
-function isRecoverableOpusDecodeError(error) {
-    const message = String(error?.message || error || '').toLowerCase();
-    return message.includes('corrupt') ||
-        message.includes('invalid packet') ||
-        message.includes('buffer too small') ||
-        message.includes('memory access out of bounds');
-}
-
-function isFatalOpusDecodeError(error) {
-    return String(error?.message || error || '').toLowerCase().includes('memory access out of bounds');
-}
-
-function loadOpusDecoderFactory() {
-    if (opusDecoderFactory) return opusDecoderFactory;
-    if (opusDecoderLoadError) throw opusDecoderLoadError;
-
-    const failures = [];
-
-    try {
-        const { OpusEncoder } = require('@discordjs/opus');
-        opusDecoderBackend = '@discordjs/opus';
-        opusDecoderFactory = () => {
-            const decoder = new OpusEncoder(OPUS_SAMPLE_RATE, OPUS_CHANNELS);
-            return {
-                decode(packet) {
-                    return Buffer.from(decoder.decode(packet, OPUS_FRAME_SIZE));
-                },
-                destroy() {}
-            };
-        };
-        return opusDecoderFactory;
-    } catch (error) {
-        failures.push(`@discordjs/opus: ${error?.message || error}`);
-    }
-
-    try {
-        const OpusScript = require('opusscript');
-        opusDecoderBackend = 'opusscript(asm)';
-        opusDecoderFactory = () => {
-            const decoder = new OpusScript(OPUS_SAMPLE_RATE, OPUS_CHANNELS, undefined, { wasm: false });
-            return {
-                decode(packet) {
-                    return Buffer.from(decoder.decode(packet));
-                },
-                destroy() {
-                    decoder.delete();
-                }
-            };
-        };
-        return opusDecoderFactory;
-    } catch (error) {
-        failures.push(`opusscript: ${error?.message || error}`);
-    }
-
-    opusDecoderLoadError = new Error(`No Opus decoder available (${failures.join('; ')})`);
-    throw opusDecoderLoadError;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -281,7 +112,7 @@ class VoiceChatService {
     _getOpusDecoderBackend() {
         try {
             loadOpusDecoderFactory();
-            return opusDecoderBackend || 'unavailable';
+            return getOpusBackend() || 'unavailable';
         } catch {
             return 'unavailable';
         }
@@ -744,7 +575,7 @@ class VoiceChatService {
             if (session.lastPlaybackEndedAt && capturedAt > session.lastPlaybackEndedAt &&
                 capturedAt - session.lastPlaybackEndedAt < ECHO_COOLDOWN_MS) return;
 
-            const wav = await this._toWav16k(pcm);
+            const wav = await pcm48kStereoToWav16kMono(pcm);
             if (!wav) return;
 
             let text = null;
@@ -893,98 +724,8 @@ class VoiceChatService {
         }
     }
 
-    _toWav16k(pcm) {
-        return new Promise((resolve) => {
-            const proc = spawn(FFMPEG, [
-                '-f', 's16le', '-ar', '48000', '-ac', '2', '-i', 'pipe:0',
-                '-ar', '16000', '-ac', '1', '-f', 'wav', 'pipe:1'
-            ], { stdio: ['pipe', 'pipe', 'pipe'] });
-
-            let settled = false;
-            const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
-            const killTimer = setTimeout(() => {
-                try { proc.kill('SIGKILL'); } catch { /* */ }
-                finish(null);
-            }, FFMPEG_TIMEOUT_MS);
-            killTimer.unref();
-
-            const out = [];
-            proc.stdout.on('data', (c) => out.push(c));
-            proc.stderr.on('data', () => {});
-            proc.on('close', (code) => { clearTimeout(killTimer); finish(code === 0 ? Buffer.concat(out) : null); });
-            proc.on('error', () => { clearTimeout(killTimer); finish(null); });
-            proc.stdin.on('error', () => {});
-            proc.stdin.write(pcm);
-            proc.stdin.end();
-        });
-    }
-
-    /** Convert any audio buffer (ogg, mp3, etc.) to 16kHz mono WAV via ffmpeg. */
     audioToWav16k(audioBuf) {
-        return new Promise((resolve) => {
-            const proc = spawn(FFMPEG, [
-                '-i', 'pipe:0',
-                '-ar', '16000', '-ac', '1', '-f', 'wav', 'pipe:1'
-            ], { stdio: ['pipe', 'pipe', 'pipe'] });
-
-            let settled = false;
-            const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
-            const killTimer = setTimeout(() => {
-                try { proc.kill('SIGKILL'); } catch { /* */ }
-                finish(null);
-            }, FFMPEG_TIMEOUT_MS);
-            killTimer.unref();
-
-            const out = [];
-            proc.stdout.on('data', (c) => out.push(c));
-            proc.stderr.on('data', () => {});
-            proc.on('close', (code) => { clearTimeout(killTimer); finish(code === 0 ? Buffer.concat(out) : null); });
-            proc.on('error', () => { clearTimeout(killTimer); finish(null); });
-            proc.stdin.on('error', () => {});
-            proc.stdin.write(audioBuf);
-            proc.stdin.end();
-        });
-    }
-
-    _wavToPcm48kStereo(wavBuf) {
-        return new Promise((resolve) => {
-            const proc = spawn(FFMPEG, [
-                '-i', 'pipe:0',
-                '-f', 's16le', '-ar', '48000', '-ac', '2', 'pipe:1'
-            ], { stdio: ['pipe', 'pipe', 'pipe'] });
-
-            let settled = false;
-            const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
-            const killTimer = setTimeout(() => {
-                try { proc.kill('SIGKILL'); } catch { /* */ }
-                finish(null);
-            }, FFMPEG_TIMEOUT_MS);
-            killTimer.unref();
-
-            const out = [];
-            const err = [];
-            proc.stdout.on('data', (c) => out.push(c));
-            proc.stderr.on('data', (c) => err.push(c));
-            proc.on('close', (code) => {
-                clearTimeout(killTimer);
-                if (code !== 0) {
-                    console.error(`[VoiceChat] wav->pcm ffmpeg exit ${code}:`, Buffer.concat(err).toString().slice(-200));
-                    finish(null);
-                    return;
-                }
-                finish(Buffer.concat(out));
-            });
-            proc.on('error', (error) => {
-                clearTimeout(killTimer);
-                console.error('[VoiceChat] wav->pcm ffmpeg error:', error.message);
-                finish(null);
-            });
-            proc.stdin.on('error', (error) => {
-                console.error('[VoiceChat] wav->pcm stdin error:', error.message);
-            });
-            proc.stdin.write(wavBuf);
-            proc.stdin.end();
-        });
+        return audioToWav16kFn(audioBuf);
     }
 
     async _hardRejoinForPlayback(session) {
@@ -1143,7 +884,7 @@ class VoiceChatService {
     async _play(session, wavBuf) {
         console.log(`[VoiceChat] _play called, ${wavBuf.length}b`);
 
-        const pcmBuf = await this._wavToPcm48kStereo(wavBuf);
+        const pcmBuf = await wavToPcm48kStereo(wavBuf);
         if (!pcmBuf?.length) {
             console.warn(`[VoiceChat] Failed to convert TTS clip to PCM for guild ${session.guildId}`);
             return;

@@ -110,7 +110,8 @@ async function handleJarvis(interaction, jarvis) {
 
     // Fuh Naw bypass
     if (prompt && /\bis\s+this\s+tuff\b/i.test(prompt)) {
-        const emojiString = '<:wilted_rose:1462415423327703260>';
+        const appEmojis = require('../app-emojis');
+        const emojiString = appEmojis.get('wilted_rose');
         return `Fuh naw, sir 💔 ${emojiString}`;
     }
 

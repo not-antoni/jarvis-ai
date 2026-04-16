@@ -594,6 +594,23 @@ class DiscordHandlers {
                         : 0
                 });
             }
+            const appEmojis = require('./app-emojis');
+            const thinkingEmoji =
+                appEmojis.get('thinking') ||
+                appEmojis.get('thinking_animation') ||
+                appEmojis.get('loading') ||
+                appEmojis.get('think');
+
+            let placeholder = null;
+            if (thinkingEmoji) {
+                try {
+                    placeholder = await this.replyToMessage(message, {
+                        content: thinkingEmoji,
+                        allowedMentions: { parse: [] }
+                    });
+                } catch (_e) { placeholder = null; }
+            }
+
             const response = await this.jarvis.generateResponse(message, fullContent, false, imageAttachments);
             const cleanResponse = response;
             if (typeof cleanResponse === 'string' && cleanResponse.trim()) {
@@ -601,16 +618,27 @@ class DiscordHandlers {
                 const chunks = splitMessage(safe);
                 for (let i = 0; i < chunks.length; i++) {
                     if (i === 0) {
+                        if (placeholder?.edit) {
+                            try {
+                                await placeholder.edit({ content: chunks[i], allowedMentions: { parse: [] } });
+                                continue;
+                            } catch (_e) { placeholder = null; }
+                        }
                         await this.replyToMessage(message, { content: chunks[i], allowedMentions: { parse: [] } });
                     } else {
                         await message.channel.send({ content: chunks[i], allowedMentions: { parse: [] } });
                     }
                 }
             } else {
-                await this.replyToMessage(message, {
-                    content: 'Temporary AI provider outage, sir. Please try again shortly.',
-                    allowedMentions: { parse: [] }
-                });
+                const errMsg = 'Temporary AI provider outage, sir. Please try again shortly.';
+                if (placeholder?.edit) {
+                    try { await placeholder.edit({ content: errMsg, allowedMentions: { parse: [] } }); }
+                    catch (_e) {
+                        await this.replyToMessage(message, { content: errMsg, allowedMentions: { parse: [] } });
+                    }
+                } else {
+                    await this.replyToMessage(message, { content: errMsg, allowedMentions: { parse: [] } });
+                }
             }
         } catch (error) {
             const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;

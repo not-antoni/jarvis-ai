@@ -4,7 +4,7 @@ const dns = require('dns').promises;
 const fs = require('fs');
 const net = require('net');
 
-const FETCH_IMPL = globalThis.fetch ? globalThis.fetch.bind(globalThis) : require('node-fetch');
+const FETCH_IMPL = globalThis.fetch.bind(globalThis);
 
 const IPV4_PRIVATE_CIDRS = [
     '0.0.0.0/8',

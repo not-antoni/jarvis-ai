@@ -3,7 +3,6 @@
 const { PermissionsBitField, UserFlags } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
 const sharp = require('sharp');
-const { fetchBuffer } = require('../../utils/net-guard');
 const {
     escapeRegExp,
     resolveChannelDisplay,
@@ -11,11 +10,20 @@ const {
     resolveRoleDisplay,
     resolveUserDisplay
 } = require('../../utils/discord-rich-text');
-const emojiRegexFactory = require('emoji-regex');
+const {
+    DEFAULT_CUSTOM_EMOJI_SIZE,
+    TWEMOJI_PNG_BASE,
+    ensureDiscordEmojiSize,
+    parseCustomEmojis,
+    parseUnicodeEmojis
+} = require('./clip/emoji-assets');
+const {
+    loadImageSafe,
+    loadStaticImage,
+    resolveTenorStatic
+} = require('./clip/image-loader');
+const embedRender = require('./clip/embed-render');
 
-const DEFAULT_CUSTOM_EMOJI_SIZE = 128;
-const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
-const TWEMOJI_PNG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72';
 const MENTION_PILL_BACKGROUND = 'rgba(88, 101, 242, 0.3)';
 const MENTION_PILL_TEXT = '#dee0fc';
 const MENTION_PILL_HORIZONTAL_PADDING = 4;
@@ -40,37 +48,6 @@ const CODE_PADDING = 8;
 const CODE_LINE_HEIGHT = 19;
 const CODE_FONT = '13px "Consolas", "Andale Mono", "Courier New", monospace';
 const CODE_BLOCK_RADIUS = 4;
-
-function envInt(name, fallback, min) { return Math.max(min, Number(process.env[name] || '') || fallback); }
-const MAX_REMOTE_IMAGE_BYTES = envInt('REMOTE_IMAGE_MAX_BYTES', 10 * 1024 * 1024, 1024 * 1024);
-
-function ensureDiscordEmojiSize(url, size = DEFAULT_CUSTOM_EMOJI_SIZE) {
-    if (!url || typeof url !== 'string') {return url;}
-    const base = url.split('?')[0];
-    return `${base}?size=${size}&quality=lossless`;
-}
-
-function unicodeEmojiToCodePoints(emoji) {
-    if (!emoji) {return null;}
-    const codePoints = [];
-    for (const symbol of Array.from(emoji)) {
-        const codePoint = symbol.codePointAt(0);
-        if (typeof codePoint === 'number' && codePoint !== 0xfe0f) {
-            const hex = codePoint.toString(16).toLowerCase();
-            codePoints.push(hex.padStart(codePoint > 0xffff ? hex.length : 4, '0'));
-        }
-    }
-    return codePoints.length ? codePoints.join('-') : null;
-}
-
-function buildUnicodeEmojiAsset(emoji) {
-    const code = unicodeEmojiToCodePoints(emoji);
-    if (!code) {return null;}
-    return {
-        svg: `${TWEMOJI_SVG_BASE}/${code}.svg`,
-        png: `${TWEMOJI_PNG_BASE}/${code}.png`
-    };
-}
 
 function getUserRoleColor(member) {
     try {
@@ -269,105 +246,6 @@ async function fetchEmojiImage(handler, url) {
         });
     handler.emojiAssetCache.set(url, pending);
     return pending;
-}
-
-async function loadImageSafe(url) {
-    const fetched = await fetchBuffer(url, { method: 'GET' }, { maxBytes: MAX_REMOTE_IMAGE_BYTES });
-    if (fetched.tooLarge) {
-        throw new Error('Image too large');
-    }
-    const contentType = String(fetched.contentType || '').toLowerCase();
-    if (contentType && !contentType.startsWith('image/')) {
-        throw new Error('Invalid image content type');
-    }
-    return await loadImage(fetched.buffer);
-}
-
-async function loadStaticImage(url) {
-    try {
-        const fetched = await fetchBuffer(url, { method: 'GET' }, { maxBytes: MAX_REMOTE_IMAGE_BYTES });
-        if (fetched.tooLarge) {throw new Error('Image too large');}
-        const input = fetched.buffer;
-        const pngBuffer = await sharp(input).ensureAlpha().extractFrame(0).png().toBuffer();
-        return await loadImage(pngBuffer);
-    } catch (error) {
-        console.warn('Failed to load static GIF frame, falling back to direct load:', error);
-        return await loadImageSafe(url);
-    }
-}
-
-async function parseCustomEmojis(text, guild = null) {
-    const emojiRegex = /<a?:(\w+):(\d+)>/g;
-    const emojis = [];
-    let match;
-    while ((match = emojiRegex.exec(text)) !== null) {
-        const isAnimated = match[0].startsWith('<a:');
-        const name = match[1];
-        const id = match[2];
-        let emojiUrl = `https://cdn.discordapp.com/emojis/${id}.${isAnimated ? 'gif' : 'png'}`;
-        let emojiObject = null;
-        if (guild) {
-            try {
-                emojiObject = guild.emojis.cache.get(id);
-                if (emojiObject) {
-                    emojiUrl = emojiObject.url || emojiUrl;
-                } else {
-                    try {
-                        const fetchedEmoji = await guild.emojis.fetch(id);
-                        if (fetchedEmoji) {
-                            emojiObject = fetchedEmoji;
-                            emojiUrl = fetchedEmoji.url || emojiUrl;
-                        }
-                    } catch (fetchError) {
-                        if (fetchError.code === 10014) {
-                            console.warn(`Emoji ${id} not found in guild ${guild.id}`);
-                        } else if (fetchError.code === 50013) {
-                            console.warn(`Missing permissions to fetch emoji ${id} from guild ${guild.id}`);
-                        } else {
-                            console.warn('Failed to fetch emoji from Discord API:', fetchError);
-                        }
-                    }
-                }
-            } catch (error) {
-                console.warn('Failed to fetch emoji from guild:', error);
-            }
-        }
-        emojiUrl = ensureDiscordEmojiSize(emojiUrl, DEFAULT_CUSTOM_EMOJI_SIZE);
-        emojis.push({
-            full: match[0],
-            name: name,
-            id: id,
-            url: emojiUrl,
-            isAnimated: isAnimated,
-            emojiObject: emojiObject,
-            start: match.index,
-            end: match.index + match[0].length
-        });
-    }
-    return emojis;
-}
-
-function parseUnicodeEmojis(text) {
-    const unicodeEmojiRe = emojiRegexFactory();
-    const emojis = [];
-    let match;
-    while ((match = unicodeEmojiRe.exec(text)) !== null) {
-        const emoji = match[0];
-        const asset = buildUnicodeEmojiAsset(emoji);
-        emojis.push({
-            full: emoji,
-            name: emoji,
-            id: null,
-            url: asset ? asset.svg : null,
-            fallbackUrl: asset ? asset.png : null,
-            isAnimated: false,
-            emojiObject: null,
-            start: match.index,
-            end: match.index + emoji.length,
-            isUnicode: true
-        });
-    }
-    return emojis;
 }
 
 async function parseMentions(handler, text, guild = null, client = null, message = null) {
@@ -903,30 +781,6 @@ async function drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth)
     return currentY;
 }
 
-async function resolveTenorStatic(url) {
-    try {
-        const oembedUrl = `https://tenor.com/oembed?url=${encodeURIComponent(url)}`;
-        const res = await fetch(oembedUrl, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (!res.ok) {throw new Error(`Tenor oEmbed HTTP ${res.status}`);}
-        const data = await res.json();
-        if (data && data.thumbnail_url) {return data.thumbnail_url;}
-        if (data && data.url) {return data.url;}
-    } catch (error) {
-        console.warn('Failed to resolve Tenor static image via oEmbed:', error);
-    }
-    try {
-        const pageRes = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (!pageRes.ok) {throw new Error(`Tenor page HTTP ${pageRes.status}`);}
-        const html = await pageRes.text();
-        let metaMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
-        if (!metaMatch) {metaMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);}
-        if (metaMatch && metaMatch[1]) {return metaMatch[1];}
-    } catch (err) {
-        console.warn('Failed to parse Tenor page for image:', err);
-    }
-    return null;
-}
-
 async function findMessageAcrossChannels(interaction, messageId) {
     try {
         if (interaction.channel && interaction.channel.messages) {
@@ -952,101 +806,7 @@ async function findMessageAcrossChannels(interaction, messageId) {
     return null;
 }
 
-// ─── Embed rendering ─────────────────────────────────────────────────────────
-
-const EMBED_BAR_WIDTH = 4;
-const EMBED_BG_COLOR = '#2b2d31';
-const EMBED_PADDING = 16;
-const EMBED_MAX_WIDTH = 520;
-const EMBED_RADIUS = 4;
-
-function embedColorHex(embed) {
-    if (embed.color == null) {return '#1e1f22';}
-    return `#${embed.color.toString(16).padStart(6, '0')}`;
-}
-
-function truncateUrls(text, maxLen = 50) {
-    return text.replace(/https?:\/\/[^\s\])>]{1,}/g, url => {
-        if (url.length <= maxLen) {return url;}
-        return url.slice(0, maxLen - 1) + '\u2026';
-    });
-}
-
-function wrapText(ctx, text, maxWidth) {
-    const lines = [];
-    for (const rawLine of text.split('\n')) {
-        if (!rawLine) {lines.push(''); continue;}
-        const words = rawLine.split(/(\s+)/);
-        let currentLine = '';
-        for (const word of words) {
-            // Force-break words wider than maxWidth
-            if (ctx.measureText(word).width > maxWidth && !currentLine.trim()) {
-                let chunk = '';
-                for (const ch of word) {
-                    if (ctx.measureText(chunk + ch).width > maxWidth && chunk) {
-                        lines.push(chunk);
-                        chunk = ch;
-                    } else {
-                        chunk += ch;
-                    }
-                }
-                currentLine = chunk;
-                continue;
-            }
-            const test = currentLine + word;
-            if (ctx.measureText(test).width > maxWidth && currentLine.trim()) {
-                lines.push(currentLine);
-                currentLine = word.trimStart();
-            } else {
-                currentLine = test;
-            }
-        }
-        if (currentLine) {lines.push(currentLine);}
-    }
-    return lines;
-}
-
-function calculateEmbedHeight(ctx, embed, innerWidth) {
-    let h = EMBED_PADDING; // top padding
-    if (embed.author?.name) {
-        h += 22;
-    }
-    if (embed.title) {
-        ctx.font = 'bold 15px Arial';
-        h += wrapText(ctx, embed.title, innerWidth).length * 20 + 4;
-    }
-    if (embed.description) {
-        ctx.font = '14px Arial';
-        const descText = truncateUrls(sanitizeMessageText(embed.description));
-        h += wrapText(ctx, descText, innerWidth).length * 19 + 4;
-    }
-    if (embed.fields?.length) {
-        h += 8;
-        let rowWidth = 0;
-        for (const field of embed.fields) {
-            ctx.font = 'bold 13px Arial';
-            const nameLines = wrapText(ctx, field.name || '', innerWidth).length;
-            ctx.font = '13px Arial';
-            const valLines = wrapText(ctx, truncateUrls(sanitizeMessageText(field.value || '')), field.inline ? innerWidth * 0.3 : innerWidth).length;
-            const fieldH = nameLines * 17 + valLines * 17 + 8;
-            if (field.inline) {
-                if (rowWidth + innerWidth * 0.33 > innerWidth) {
-                    rowWidth = 0;
-                }
-                if (rowWidth === 0) {h += fieldH;}
-                rowWidth += innerWidth * 0.33;
-            } else {
-                rowWidth = 0;
-                h += fieldH;
-            }
-        }
-    }
-    if (embed.footer?.text) {
-        h += 22;
-    }
-    h += EMBED_PADDING; // bottom padding
-    return h;
-}
+// ─── Embed rendering moved to ./clip/embed-render.js ─────────────────────────
 
 function drawRoundedRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
@@ -1062,166 +822,19 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
     ctx.closePath();
 }
 
-async function drawEmbed(ctx, embed, startX, startY, maxWidth) {
-    const embedWidth = Math.min(maxWidth, EMBED_MAX_WIDTH);
-    const innerWidth = embedWidth - EMBED_BAR_WIDTH - EMBED_PADDING * 2;
-    const embedHeight = calculateEmbedHeight(ctx, embed, innerWidth);
-    const barColor = embedColorHex(embed);
-
-    // Background
-    drawRoundedRect(ctx, startX, startY, embedWidth, embedHeight, EMBED_RADIUS);
-    ctx.fillStyle = EMBED_BG_COLOR;
-    ctx.fill();
-
-    // Colored left bar
-    ctx.fillStyle = barColor;
-    drawRoundedRect(ctx, startX, startY, EMBED_BAR_WIDTH, embedHeight, EMBED_RADIUS);
-    ctx.fill();
-    // Overlap a square to remove right-side rounding on the bar
-    ctx.fillRect(startX + EMBED_RADIUS, startY, EMBED_BAR_WIDTH - EMBED_RADIUS, embedHeight);
-
-    const contentX = startX + EMBED_BAR_WIDTH + EMBED_PADDING;
-    let cursorY = startY + EMBED_PADDING;
-
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-
-    // Author
-    if (embed.author?.name) {
-        if (embed.author.iconURL) {
-            try {
-                const iconImg = await loadImageSafe(embed.author.iconURL);
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(contentX + 10, cursorY + 8, 10, 0, Math.PI * 2);
-                ctx.clip();
-                ctx.drawImage(iconImg, contentX, cursorY - 2, 20, 20);
-                ctx.restore();
-                ctx.fillStyle = '#f2f3f5';
-                ctx.font = 'bold 13px Arial';
-                ctx.fillText(truncateText(embed.author.name, 60), contentX + 26, cursorY);
-            } catch (_) {
-                ctx.fillStyle = '#f2f3f5';
-                ctx.font = 'bold 13px Arial';
-                ctx.fillText(truncateText(embed.author.name, 60), contentX, cursorY);
-            }
-        } else {
-            ctx.fillStyle = '#f2f3f5';
-            ctx.font = 'bold 13px Arial';
-            ctx.fillText(truncateText(embed.author.name, 60), contentX, cursorY);
-        }
-        cursorY += 22;
-    }
-
-    // Title
-    if (embed.title) {
-        ctx.fillStyle = embed.url ? '#00a8fc' : '#f2f3f5';
-        ctx.font = 'bold 15px Arial';
-        for (const line of wrapText(ctx, embed.title, innerWidth)) {
-            ctx.fillText(line, contentX, cursorY);
-            cursorY += 20;
-        }
-        cursorY += 4;
-    }
-
-    // Description
-    if (embed.description) {
-        ctx.font = '14px Arial';
-        const descText = truncateUrls(sanitizeMessageText(embed.description));
-        for (const line of wrapText(ctx, descText, innerWidth)) {
-            // Render URLs in blue, rest in normal color
-            const urlPattern = /https?:\/\/[^\s\])>]+[\u2026]?/g;
-            let lastIdx = 0;
-            let drawX = contentX;
-            let match;
-            while ((match = urlPattern.exec(line)) !== null) {
-                const before = line.slice(lastIdx, match.index);
-                if (before) {
-                    ctx.fillStyle = '#dbdee1';
-                    ctx.fillText(before, drawX, cursorY);
-                    drawX += ctx.measureText(before).width;
-                }
-                ctx.fillStyle = '#00a8fc';
-                ctx.fillText(match[0], drawX, cursorY);
-                drawX += ctx.measureText(match[0]).width;
-                lastIdx = match.index + match[0].length;
-            }
-            const remaining = line.slice(lastIdx);
-            if (remaining) {
-                ctx.fillStyle = '#dbdee1';
-                ctx.fillText(remaining, drawX, cursorY);
-            }
-            cursorY += 19;
-        }
-        cursorY += 4;
-    }
-
-    // Fields
-    if (embed.fields?.length) {
-        cursorY += 4;
-        let fieldX = contentX;
-        let maxFieldBottomY = cursorY;
-        const columnWidth = Math.floor(innerWidth * 0.33);
-        for (const field of embed.fields) {
-            if (field.inline) {
-                if (fieldX + columnWidth > contentX + innerWidth) {
-                    fieldX = contentX;
-                    cursorY = maxFieldBottomY + 4;
-                }
-            } else {
-                if (fieldX !== contentX) {
-                    cursorY = maxFieldBottomY + 4;
-                }
-                fieldX = contentX;
-            }
-            const fw = field.inline ? columnWidth - 8 : innerWidth;
-            let fy = cursorY;
-            ctx.fillStyle = '#f2f3f5';
-            ctx.font = 'bold 13px Arial';
-            for (const line of wrapText(ctx, field.name || '', fw)) {
-                ctx.fillText(line, fieldX, fy);
-                fy += 17;
-            }
-            ctx.fillStyle = '#dbdee1';
-            ctx.font = '13px Arial';
-            for (const line of wrapText(ctx, truncateUrls(sanitizeMessageText(field.value || '')), fw)) {
-                ctx.fillText(line, fieldX, fy);
-                fy += 17;
-            }
-            if (fy > maxFieldBottomY) {maxFieldBottomY = fy;}
-            if (field.inline) {
-                fieldX += columnWidth;
-            } else {
-                cursorY = fy + 4;
-                maxFieldBottomY = cursorY;
-            }
-        }
-        cursorY = maxFieldBottomY;
-    }
-
-    // Footer
-    if (embed.footer?.text) {
-        cursorY += 4;
-        ctx.fillStyle = '#949ba4';
-        ctx.font = '12px Arial';
-        ctx.fillText(truncateText(embed.footer.text, 80), contentX, cursorY);
-        cursorY += 18;
-    }
-
-    return embedHeight;
+function drawEmbed(ctx, embed, startX, startY, maxWidth) {
+    return embedRender.drawEmbed(ctx, embed, startX, startY, maxWidth, { drawRoundedRect, sanitizeMessageText });
 }
 
 function calculateTotalEmbedHeight(ctx, embeds, maxWidth) {
-    if (!embeds?.length) {return 0;}
-    let total = 0;
-    const embedWidth = Math.min(maxWidth, EMBED_MAX_WIDTH);
-    const innerWidth = embedWidth - EMBED_BAR_WIDTH - EMBED_PADDING * 2;
-    for (const embed of embeds) {
-        if (!embed.description && !embed.title && !embed.author?.name && !embed.fields?.length && !embed.footer?.text) {continue;}
-        total += calculateEmbedHeight(ctx, embed, innerWidth) + 8;
-    }
-    return total;
+    return embedRender.calculateTotalEmbedHeight(ctx, embeds, maxWidth, sanitizeMessageText);
 }
+
+function calculateEmbedHeight(ctx, embed, innerWidth) {
+    return embedRender.calculateEmbedHeight(ctx, embed, innerWidth, sanitizeMessageText);
+}
+
+const { embedColorHex, truncateUrls, wrapText, EMBED_PADDING, EMBED_BAR_WIDTH, EMBED_MAX_WIDTH } = embedRender;
 
 // ─── Main clip image creation ────────────────────────────────────────────────
 
@@ -1407,29 +1020,8 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
     return processedBuffer;
 }
 
-async function renderEmbedsToBuffer(embeds, maxWidth = 520) {
-    const renderableEmbeds = (embeds || []).filter(e => e.description || e.title || e.author?.name || e.fields?.length || e.footer?.text);
-    if (!renderableEmbeds.length) {return null;}
-    const pad = 12;
-    const measCanvas = createCanvas(1, 1);
-    const measCtx = measCanvas.getContext('2d');
-    const embedWidth = Math.min(maxWidth, EMBED_MAX_WIDTH);
-    const innerWidth = embedWidth - EMBED_BAR_WIDTH - EMBED_PADDING * 2;
-    let totalHeight = pad;
-    for (const embed of renderableEmbeds) {
-        totalHeight += calculateEmbedHeight(measCtx, embed, innerWidth) + 8;
-    }
-    totalHeight += pad;
-    const canvas = createCanvas(embedWidth + pad * 2, totalHeight);
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#313338';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    let cursorY = pad;
-    for (const embed of renderableEmbeds) {
-        const h = await drawEmbed(ctx, embed, pad, cursorY, embedWidth);
-        cursorY += h + 8;
-    }
-    return canvas.toBuffer('image/png');
+function renderEmbedsToBuffer(embeds, maxWidth = 520) {
+    return embedRender.renderEmbedsToBuffer(embeds, maxWidth, { drawRoundedRect, sanitizeMessageText });
 }
 
 module.exports = {

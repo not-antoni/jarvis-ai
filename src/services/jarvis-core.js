@@ -13,6 +13,7 @@ const youtubeSearch = require('./youtube-search');
 const { EmbedBuilder } = require('discord.js');
 const { buildStructuredMemoryBlock, sanitizeUserInput } = require('../utils/memory-sanitizer');
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
+const appEmojis = require('./app-emojis');
 const {
     isGarbageOutput,
     isInternalRecoveryResponse
@@ -184,15 +185,16 @@ class JarvisAI {
                     }, 3000).unref?.();
                 }
 
-                return ':x: <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull: everything is down, sir. 0 models available. someone get Stark on the line';
+                const alarms = appEmojis.repeat('alarm', 3);
+                return `:x: ${alarms} :skull::skull::skull::skull: everything is down, sir. 0 models available. someone get Stark on the line`;
             } else if (working === status.length) {
                 return `All systems operational, sir.:white_check_mark: ${working} of ${status.length} models available.`;
             }
             let extra = '';
             if (working <= 5) {
-                extra = ' <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull::skull:';
+                extra = ` ${appEmojis.repeat('alarm', 3)} :skull::skull::skull::skull::skull:`;
             } else if (working < 20) {
-                extra = ' <a:alarm:1450108977592406248> :skull::skull::skull:';
+                extra = ` ${appEmojis.get('alarm')} :skull::skull::skull:`;
             } else if (working < 30) {
                 extra = ' :skull::skull::skull:';
             }

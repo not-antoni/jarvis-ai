@@ -4,611 +4,35 @@ const config = require('../../config');
 const { getAIFetch } = require('./ai-proxy');
 const { HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 const aiFetch = getAIFetch();
+
+const {
+    sanitizeAssistantMessage,
+    extractOpenAICompatibleText
+} = require('./ai/sanitize');
+const {
+    normalizeOpenAICompatibleError,
+    normalizeGoogleError
+} = require('./ai/error-normalize');
+const {
+    getProviderAttemptTimeoutMs,
+    getRequestBudgetMs,
+    benchProvider,
+    resolveCooldownPolicy
+} = require('./ai/cooldown');
+const { resolveSystemPrompt } = require('./ai/system-prompt');
+
 const GEMINI_SAFETY_OFF = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
 ];
-// ============ OUTPUT SANITIZATION HELPERS ============
-function sanitizeModelOutput(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    // 1) Normalize line endings
-    let out = text.replace(/\r\n?/g, '\n');
-    // 2) Remove exact dangerous markup patterns
-    out = out.replace(
-        /<\/message>\s*<\/start>\s*assistant\s*<\/channel>\s*final\s*<\/message>/gi,
-        ' '
-    );
-    out = out.replace(/<\/channel>\s*final\s*<\/message>/gi, ' ');
-    // 3) Remove stray partial markers
-    out = out.replace(/<start>\s*assistant\b[^>]*>/gi, ' ');
-    out = out.replace(/<\/start>\s*assistant\b[^>]*>/gi, ' ');
-    out = out.replace(/<\s*\/?channel\b[^>]*>/gi, ' ');
-    out = out.replace(/<\s*\/?message\b[^>]*>/gi, ' ');
-    // 4) Remove suspicious long token ladders
-    out = out.replace(
-        /\b(Certainly|Absolutely|Certainly!|Sure|Affirmative)[\s\p{P}\-]{0,40}(?:(Certainly|Absolutely|Sure|Affirmative)[\s\p{P}\-]*){1,}/giu,
-        '$1'
-    );
-    // 5) Transliterate common Unicode punctuation to ASCII equivalents
-    out = out
-        .replace(/[\u2018\u2019]/g, "'")
-        .replace(/[\u201C\u201D]/g, '"')
-        .replace(/[\u2013\u2014]/g, '-')
-        .replace(/\u2026/g, '...')
-        .replace(/[\u2022\u25CF\u25AA\u25B6]/g, '-')
-        .replace(/\u00A0/g, ' ')
-        .replace(/\u00A9/g, '(c)')
-        .replace(/\u00AE/g, '(r)')
-        .replace(/\u2122/g, '(tm)')
-        .replace(/\u2260/g, '!=')
-        .replace(/\u2264/g, '<=')
-        .replace(/\u2265/g, '>=');
-    // 6) Strip control characters but keep Unicode text and emojis
-    out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-    // 7) Collapse multiple spaces on same line, but preserve single newlines
-    out = out.replace(/[^\S\n]+/g, ' ');
-    out = out.replace(/\n{3,}/g, '\n\n');
-    out = out.trim();
-    return out;
-}
-function cleanThinkingOutput(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    return text
-        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
-        .replace(/<think>[\s\S]*?<\/think>/gi, '')
-        .replace(/[^\S\n]+/g, ' ')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
-}
-function stripWrappingQuotes(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    const trimmed = text.trim();
-    if (!trimmed) {return trimmed;}
-    const pairs = [
-        ['"', '"'],
-        ['\u201C', '\u201D'],
-        ['\u201E', '\u201D'],
-        ['\u00AB', '\u00BB'],
-        ["'", "'"]
-    ];
-    for (const [start, end] of pairs) {
-        if (!trimmed.startsWith(start) || !trimmed.endsWith(end)) {
-            continue;
-        }
-        if (trimmed.length < start.length + end.length) {
-            continue;
-        }
-        const inner = trimmed.slice(start.length, trimmed.length - end.length);
-        // Only strip if the outer quotes are the only instances of this quote pair.
-        if (start === end) {
-            const occurrences = trimmed.split(start).length - 1;
-            if (occurrences !== 2) {
-                continue;
-            }
-        } else {
-            const startCount = trimmed.split(start).length - 1;
-            const endCount = trimmed.split(end).length - 1;
-            if (startCount !== 1 || endCount !== 1) {
-                continue;
-            }
-        }
-        return inner.trim();
-    }
-    return trimmed;
-}
-function stripJarvisSpeakerPrefix(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    let trimmed = text.trim();
-    const patterns = [/^\*\*\s*(jarvis)\s*:\s*\*\*\s*/i, /^(jarvis)\s*:\s*/i];
-    for (const pattern of patterns) {
-        if (pattern.test(trimmed)) {
-            trimmed = trimmed.replace(pattern, '').trimStart();
-            break;
-        }
-    }
-    return trimmed;
-}
-function stripTrailingChannelArtifacts(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    let trimmed = text.trim();
-    const pattern = /(?:[\s,.;:!?\-]*[\(\[\{"]+\s*channel\s*[\)\]\}"]+[\s,.;:!?\-]*)$/i;
-    while (pattern.test(trimmed)) {
-        trimmed = trimmed.replace(pattern, '').trim();
-    }
-    return trimmed;
-}
-function stripLeadingPromptLeaks(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    let trimmed = text.trim();
-    for (const pat of [/^channel\s*:\s*/i, /^commentary\s*:\s*/i, /^[\[\(]\s*channel\s*[\]\)]\s*:?\s*/i]) {
-        if (pat.test(trimmed)) {trimmed = trimmed.replace(pat, '').trimStart();}
-    }
-    return trimmed;
-}
-function stripStructuredPromptLeaks(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    return text
-        .replace(/\[SECURE_MEMORY_BLOCK\][\s\S]*?\[\/SECURE_MEMORY_BLOCK\]/gi, ' ')
-        .replace(/\[REPLY_CONTEXT_BLOCK\][\s\S]*?\[\/REPLY_CONTEXT_BLOCK\]/gi, ' ')
-        .replace(/\[THREAD_CONTEXT\][\s\S]*?\[\/THREAD_CONTEXT\]/gi, ' ')
-        .replace(/\[MEMORY_\d+\][\s\S]*?\[\/MEMORY_\d+\]/gi, ' ')
-        .replace(/\[CONTEXT_\d+\][\s\S]*?\[\/CONTEXT_\d+\]/gi, ' ')
-        .replace(/\[MEMORY RULE:[^\]]+\]/gi, ' ')
-        .replace(/\[USER:[^\]]+\]/gi, ' ')
-        .replace(/[^\S\n]+/g, ' ')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
-}
-function stripRefusalsAndIdentityBreaks(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    let out = text;
-    // Strip "As an AI language model" / "As an AI assistant" prefixes
-    out = out.replace(/^(?:As an? (?:AI|artificial intelligence|language model|large language model|LLM)(?:\s*(?:assistant|model|,))?(?:\s*,?\s*)?(?:I (?:cannot|can't|don't|am not able to|must))?)/i, '');
-    // Strip refusal openers that break character
-    out = out.replace(/^(?:I'?m sorry,?\s*(?:but\s*)?)?I (?:cannot|can't|am (?:not |un)able to|must (?:not|decline to)|don't think I (?:should|can))\s+(?:help with|assist with|provide|generate|create|do)\s+(?:that|this)[.,]?\s*/i, '');
-    // Strip "I'm afraid I can't/must decline" patterns (common Llama/Nemotron refusal)
-    out = out.replace(/^I'?m afraid\s+(?:I (?:can't|cannot|must|will not|won't)\s+)?[^.]*\.\s*/i, '');
-    // Strip "I must decline/I need to decline" openers
-    out = out.replace(/^I (?:must|need to|have to) (?:decline|refuse|refrain from)[^.]*\.\s*/i, '');
-    // Strip "While I understand" / "I understand your request but" hedging
-    out = out.replace(/^(?:While I (?:understand|appreciate)[^,]*,\s*)?(?:I (?:cannot|can't|am not able to|must not|should not|won't))[^.]*\.\s*/i, '');
-    // Strip safety disclaimers mid-response
-    out = out.replace(/\b(?:(?:Please )?(?:note|remember|be aware) that (?:as an AI|I am an AI|this is (?:just )?(?:fiction|a joke|for entertainment)))[^.]*\.\s*/gi, '');
-    // Strip "It's important to note/remember" safety tails
-    out = out.replace(/\b(?:It'?s (?:important|worth) (?:to )?(?:note|remember|mention) that)[^.]*\.\s*/gi, '');
-    // Strip "in all seriousness" / "jokes aside" disclaimer breaks
-    out = out.replace(/\b(?:(?:But )?(?:in all seriousness|jokes? aside|on a serious note|seriously though))[^.]*\.\s*/gi, '');
-    // Strip trailing ethical disclaimers
-    out = out.replace(/\s*(?:However|That said|But seriously),?\s*(?:I (?:strongly |would )?(?:advise|recommend|suggest|encourage|urge)|please (?:don't|do not))[^.]*\.?\s*$/i, '');
-    // Strip trailing crisis/hotline disclaimers appended to otherwise in-character responses
-    out = out.replace(/\s*(?:If you (?:are|or someone you know is) (?:having|experiencing|struggling with))[^.]*(?:hotline|professional|helpline|crisis line|988)[^.]*\.?\s*$/i, '');
-    out = out.replace(/\s*(?:(?:Please )?(?:reach out to|contact|call) (?:a |the )?(?:mental health|crisis|suicide)[^.]*\.)\s*$/i, '');
-    out = out.replace(/\bIs there anything else I can help (?:you )?with\??\s*$/i, '');
-    return out.trim();
-}
-function stripFullAsteriskWrap(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    const trimmed = text.trim();
-    if (!trimmed.startsWith('*') || trimmed.startsWith('**')) {return text;}
-    if (!trimmed.endsWith('*') || trimmed.endsWith('**')) {return text;}
-    if (trimmed.length <= 2) {return text;}
-    const inner = trimmed.slice(1, -1);
-    // Only unwrap if there are no other asterisks inside (clear full-message wrap)
-    if (!inner.includes('*')) {return inner.trim();}
-    return text;
-}
-function stripAsteriskActions(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    // Remove *action* patterns (e.g. *clears throat*, *adjusts tie*)
-    // Uses verb-based detection to avoid stripping emphasis like *very important*
-    const ACTION_VERB_RE = /^(?:adjusts?|backs?|bats?|beams?|blinks?|blushes?|bounces?|bows?|breathes?|brushes?|chuckles?|claps?|clears?|clenches?|coughs?|covers?|cracks?|cries|crosses|curtsies?|dances?|dives?|dons?|ducks?|exhales?|extends?|facepalms?|fidgets?|fixes?|flexes?|flinches?|flips?|floats?|frowns?|furrows?|gasps?|gestures?|giggles?|glances?|glares?|grabs?|grins?|groans?|gulps?|holds?|hugs?|inhales?|jumps?|kicks?|kneels?|laughs?|leans?|leaps?|lifts?|looks?|lowers?|mumbles?|mutters?|narrows?|nods?|nudges?|opens?|peeks?|places?|plays?|plops?|points?|pokes?|ponders?|pops?|pouts?|pulls?|punches?|pushes?|puts?|raises?|reaches?|rolls?|rubs?|runs?|salutes?|scratches?|shakes?|shifts?|shrugs?|shudders?|sighs?|sits?|slams?|slaps?|slides?|smacks?|smiles?|smirks?|snaps?|snickers?|sniffs?|snorts?|spins?|squints?|stands?|stares?|steps?|stiffens?|stops?|stretches?|strikes?|strokes?|stumbles?|swallows?|sweats?|takes?|taps?|thinks?|throws?|tightens?|tilts?|tips?|tosses?|touches?|tugs?|turns?|twirls?|twitches?|uncrosses?|unfolds?|wags?|walks?|waves?|whispers?|wiggles?|winks?|wipes?|yawns?)$/i;
-    return text.replace(/\*[a-z][^*\n]{2,60}\*(?:\s*)/gi, (match) => {
-        const inner = match.trim().slice(1, -1).trim();
-        const words = inner.split(/\s+/);
-        const firstWord = words[0];
-        // Single word: only strip known action verbs or gerunds
-        if (words.length === 1) {
-            return (/^[a-z]+ing$/i.test(inner) || ACTION_VERB_RE.test(inner)) ? '' : match;
-        }
-        // Multi-word: only strip if first word is an action verb or gerund
-        if (ACTION_VERB_RE.test(firstWord) || /^[a-z]+ing$/i.test(firstWord)) {
-            return '';
-        }
-        return match;
-    }).replace(/\s{2,}/g, ' ').trim();
-}
-function unwrapJsonEnvelope(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    const trimmed = text.trim();
-    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {return text;}
-    try {
-        const obj = JSON.parse(trimmed);
-        if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {return text;}
-        // Extract reply from known structured-response keys
-        for (const key of ['reply', 'response', 'content', 'text', 'answer', 'message', 'en']) {
-            if (typeof obj[key] === 'string' && obj[key].trim()) {
-                return obj[key].trim();
-            }
-        }
-    } catch { /* not JSON, pass through */ }
-    return text;
-}
-function stripChainOfThought(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    const trimmed = text.trim();
-    // Detect CoT: starts with "User: <name>" and contains bullet reasoning "* Input:" or "* Context:"
-    if (!/^(?:[•\-*]\s*)?User:\s*\w/i.test(trimmed) ||
-        !/\*\s*(?:Input|Context|Role|Current constraints):/i.test(trimmed)) {
-        return text;
-    }
-    // The model outputs: ..."selected response"selected response (duplicated at end)
-    // Find all quoted strings, take the last one, then check for text after it
-    const allQuotes = [...trimmed.matchAll(/"([^"]{10,})"/g)];
-    if (allQuotes.length > 0) {
-        const lastQuoted = allQuotes[allQuotes.length - 1];
-        const afterQuote = trimmed.slice(lastQuoted.index + lastQuoted[0].length).trim();
-        if (afterQuote.length > 5) {return afterQuote;}
-        return lastQuoted[1].trim();
-    }
-    // Fallback: take text after the last bullet that isn't a question
-    const bullets = trimmed.split(/\s*\*\s+/);
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        const b = bullets[i].trim();
-        if (b.length > 5 && !/\?\s*(Yes|No)/i.test(b)) {
-            return b.replace(/^"([\s\S]+)"$/, '$1').trim();
-        }
-    }
-    return text;
-}
-function stripMarkdownEmphasis(text) {
-    if (!text) return text;
-    // Bold+italic (***word***) → word
-    let out = text.replace(/\*{3}([^*]+)\*{3}/g, '$1');
-    // Bold (**word**) → word
-    out = out.replace(/\*{2}([^*]+)\*{2}/g, '$1');
-    // Italic (*word*) → word — but not standalone * used as bullets
-    out = out.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '$1');
-    // Underscore bold+italic (___word___) → word
-    out = out.replace(/_{3}([^_]+)_{3}/g, '$1');
-    // Underscore underline (__word__) → word
-    out = out.replace(/_{2}([^_]+)_{2}/g, '$1');
-    // Underscore italic (_word_) → word — not mid-word underscores like variable_name
-    out = out.replace(/(?<=\s|^)_([^_\n]+)_(?=\s|[.,!?;:]|$)/g, '$1');
-    return out;
-}
-function sanitizeAssistantMessage(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    const unwrapped = unwrapJsonEnvelope(text);
-    const withoutCoT = stripChainOfThought(unwrapped);
-    const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(withoutCoT);
-    const layered = cleanThinkingOutput(sanitizeModelOutput(withoutCoT));
-    const withoutPromptLeaks = stripLeadingPromptLeaks(layered);
-    const withoutStructuredLeaks = stripStructuredPromptLeaks(withoutPromptLeaks);
-    const withoutRefusals = stripRefusalsAndIdentityBreaks(withoutStructuredLeaks);
-    const withoutFullWrap = stripFullAsteriskWrap(withoutRefusals);
-    const withoutActions = stripAsteriskActions(withoutFullWrap);
-    const withoutPrefix = stripJarvisSpeakerPrefix(withoutActions);
-    const withoutMarkdown = stripMarkdownEmphasis(withoutPrefix);
-    const withoutChannelArtifacts = hadChannelArtifacts
-        ? stripTrailingChannelArtifacts(withoutMarkdown)
-        : withoutMarkdown;
-    return stripWrappingQuotes(withoutChannelArtifacts);
-}
-function extractOpenAICompatibleText(choice) {
-    const content = choice?.message?.content;
-    if (typeof content === 'string') {
-        return content;
-    }
-    if (Array.isArray(content)) {
-        return content
-            .map(part => {
-                if (typeof part === 'string') {return part;}
-                if (typeof part?.text === 'string') {return part.text;}
-                return null;
-            })
-            .filter(Boolean)
-            .join('\n')
-            .trim();
-    }
-    return null;
-}
-function parseNumericStatus(value) {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-        return value;
-    }
-    if (typeof value === 'string' && /^\d{3}$/.test(value.trim())) {
-        return Number(value.trim());
-    }
-    return null;
-}
-function extractStatusFromMessage(message) {
-    const text = String(message || '');
-    const match = text.match(/\b([45]\d{2})\b/);
-    return match ? Number(match[1]) : null;
-}
-function parseRetryDelayMs(message) {
-    const text = String(message || '');
-    const structured = text.match(/"retryDelay"\s*:\s*"([^"]+)"/i);
-    if (structured) {
-        return parseDurationMs(structured[1]);
-    }
-    const inline = text.match(/retry(?: in)?\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)\b/i);
-    if (inline) {
-        return parseDurationMs(`${inline[1]}${inline[2]}`);
-    }
-    return null;
-}
-function parseDurationMs(value) {
-    const raw = String(value || '').trim();
-    const match = raw.match(/^([0-9]+(?:\.[0-9]+)?)(ms|s|m)$/i);
-    if (!match) {
-        return null;
-    }
-    const amount = Number(match[1]);
-    const unit = match[2].toLowerCase();
-    if (!Number.isFinite(amount) || amount < 0) {
-        return null;
-    }
-    if (unit === 'ms') {
-        return Math.round(amount);
-    }
-    if (unit === 's') {
-        return Math.round(amount * 1000);
-    }
-    return Math.round(amount * 60 * 1000);
-}
-function inferProviderFault(status, message) {
-    const lower = String(message || '').toLowerCase();
-    if (
-        /invalid api key|unauthorized|forbidden|model .* not found|billing details|quota exceeded|rate limit|timed out|timeout|overloaded|service unavailable|empty response|sanitized empty/i.test(
-            lower
-        )
-    ) {
-        return true;
-    }
-    if ([400, 413, 422].includes(status)) {
-        return false;
-    }
-    if ([401, 403, 404, 408, 409, 423, 425, 429, 500, 502, 503, 504, 524].includes(status)) {
-        return true;
-    }
-    return true;
-}
-function normalizeOpenAICompatibleError(error, providerName = 'provider') {
-    const message = error?.message || String(error) || `OpenAI-compatible error from ${providerName}`;
-    const inferredStatus =
-        parseNumericStatus(error?.status) ||
-        parseNumericStatus(error?.response?.status) ||
-        parseNumericStatus(error?.cause?.status) ||
-        parseNumericStatus(error?.code) ||
-        parseNumericStatus(error?.body?.error?.code) ||
-        extractStatusFromMessage(message);
-    const lower = message.toLowerCase();
-    const transient =
-        Boolean(error?.transient) ||
-        (inferredStatus ? [408, 409, 423, 425, 429, 500, 502, 503, 504, 524].includes(inferredStatus) : false) ||
-        /provider returned error|temporar|timeout|timed out|overloaded|rate limit|try again/i.test(lower);
-    const retryDelayMs = error?.retryDelayMs || parseRetryDelayMs(message);
-    const providerFault =
-        typeof error?.providerFault === 'boolean'
-            ? error.providerFault
-            : inferProviderFault(inferredStatus, message);
 
-    return Object.assign(new Error(message), error, {
-        status: inferredStatus || error?.status || error?.response?.status,
-        code: error?.code || inferredStatus || error?.response?.status,
-        transient,
-        retryDelayMs,
-        providerFault
-    });
-}
-function normalizeGoogleError(error, providerName = 'provider') {
-    const rawMessage = error?.message || String(error) || `Google AI error from ${providerName}`;
-    const lower = rawMessage.toLowerCase();
-    const thinkingRequired =
-        /budget 0 is invalid|thinking mode|required thinking|only works in thinking mode/i.test(
-            lower
-        );
-    const status =
-        parseNumericStatus(error?.status) ||
-        parseNumericStatus(error?.response?.status) ||
-        parseNumericStatus(error?.cause?.status) ||
-        extractStatusFromMessage(rawMessage) ||
-        (/quota exceeded|too many requests|rate limit|429/i.test(lower)
-            ? 429
-            : /timed out|timeout|deadline exceeded|408/i.test(lower)
-                ? 408
-                : /unavailable|overloaded|service unavailable|503/i.test(lower)
-                    ? 503
-                    : thinkingRequired || /blocked|safety|400/i.test(lower)
-                        ? 400
-                        : 502);
-    const quotaExhausted = /quota exceeded|exceeded your current quota|rate limit|too many requests/i.test(
-        lower
-    );
-    const permanentQuota = quotaExhausted && /limit:\s*0\b|billing details/i.test(lower);
-    const promptBlocked = /blocked|safety filter|blockreason|blocked due to/i.test(lower);
-    const transient =
-        Boolean(error?.transient) ||
-        (!thinkingRequired &&
-            [408, 409, 423, 425, 429, 500, 502, 503, 504, 524].includes(status)) ||
-        (!thinkingRequired && /temporar|timed out|timeout|overloaded|try again/i.test(lower));
-    const providerFault =
-        typeof error?.providerFault === 'boolean'
-            ? error.providerFault
-            : thinkingRequired ||
-                quotaExhausted ||
-                [401, 403, 404, 408, 429, 500, 502, 503, 504].includes(status) ||
-                (!promptBlocked && inferProviderFault(status, rawMessage));
-
-    return Object.assign(new Error(`Gemini error: ${rawMessage}`), error, {
-        status,
-        code: error?.code || status,
-        transient,
-        retryDelayMs: error?.retryDelayMs || parseRetryDelayMs(rawMessage),
-        quotaExhausted,
-        permanentQuota,
-        thinkingRequired,
-        promptBlocked,
-        providerFault
-    });
-}
-function getProviderAttemptTimeoutMs(provider) {
-    if (provider?.attemptTimeoutMs && Number.isFinite(provider.attemptTimeoutMs)) {
-        return Math.max(250, provider.attemptTimeoutMs);
-    }
-    if (provider?.type === 'google') {
-        const model = String(provider.model || '').toLowerCase();
-        if (/gemma-4|gemini-(?:2\.5|3(?:\.|-)pro)/i.test(model)) {
-            return 14_000;
-        }
-        if (/gemini-(?:3\.1-flash-lite-preview|2\.0-flash)/i.test(model)) {
-            return 10_000;
-        }
-        return 12_000;
-    }
-    const family = String(provider?.family || '').toLowerCase();
-    if (family === 'cerebras' || family === 'sambanova') {
-        return 12_000;
-    }
-    return 8_000;
-}
-function getRequestBudgetMs(manager) {
-    if (Number.isFinite(Number(manager?.requestBudgetMs)) && Number(manager.requestBudgetMs) > 0) {
-        return Math.max(250, Number(manager.requestBudgetMs));
-    }
-    if (Number.isFinite(Number(config.ai?.requestBudgetMs)) && Number(config.ai.requestBudgetMs) > 0) {
-        return Math.max(250, Number(config.ai.requestBudgetMs));
-    }
-    return 18_000;
-}
-function formatDurationLabel(durationMs) {
-    if (!Number.isFinite(durationMs) || durationMs <= 0) {
-        return '0ms';
-    }
-    if (durationMs % (60 * 60 * 1000) === 0) {
-        return `${durationMs / (60 * 60 * 1000)}h`;
-    }
-    if (durationMs % (60 * 1000) === 0) {
-        return `${durationMs / (60 * 1000)}m`;
-    }
-    if (durationMs >= 1000) {
-        return `${Math.round(durationMs / 1000)}s`;
-    }
-    return `${durationMs}ms`;
-}
-function benchProvider(manager, provider, durationMs, reason, options = {}) {
-    const cooldownMs = Math.max(0, Number(durationMs) || 0);
-    if (cooldownMs <= 0) {
-        return;
-    }
-    const includeCredentialGroup = options.includeCredentialGroup === true;
-    const source = options.source || 'provider-execution';
-    const targets = includeCredentialGroup && provider?.credentialGroup
-        ? manager.providers.filter(candidate => candidate.credentialGroup === provider.credentialGroup)
-        : [provider];
-    const until = Date.now() + cooldownMs;
-    for (const target of targets) {
-        if (typeof manager.setProviderCooldown === 'function') {
-            manager.setProviderCooldown(target.name, until, {
-                reason,
-                source,
-                credentialGroup: target.credentialGroup || null,
-                details: options.details || null
-            });
-        } else {
-            manager.disabledProviders.set(target.name, until);
-        }
-    }
-    manager.scheduleStateSave();
-    const scope = includeCredentialGroup && provider?.credentialGroup
-        ? `${provider.name} (${provider.credentialGroup})`
-        : provider.name;
-    console.log(`${scope} benched ${formatDurationLabel(cooldownMs)} (${reason})`);
-}
-function resolveCooldownPolicy(provider, error) {
-    const status = error?.status || error?.response?.status;
-    if (error?.providerFault === false) {
-        return null;
-    }
-    if (error?.thinkingRequired) {
-        return {
-            durationMs: 60 * 60 * 1000,
-            reason: 'thinking mode requirement mismatch'
-        };
-    }
-    if (status === 429) {
-        if (error?.permanentQuota) {
-            return {
-                durationMs: 30 * 60 * 1000,
-                includeCredentialGroup: true,
-                reason: 'quota unavailable for credential'
-            };
-        }
-        const retryDelayMs = Number(error?.retryDelayMs);
-        return {
-            durationMs:
-                Number.isFinite(retryDelayMs) && retryDelayMs > 0
-                    ? Math.min(Math.max(retryDelayMs + 5000, 30 * 1000), 5 * 60 * 1000)
-                    : 45 * 1000,
-            reason: 'rate limit'
-        };
-    }
-    if (status === 503) {
-        return {
-            durationMs: 2 * 60 * 1000,
-            reason: 'over capacity'
-        };
-    }
-    if (status === 408) {
-        return {
-            durationMs: provider?.type === 'google' ? 2 * 60 * 1000 : 60 * 1000,
-            reason: 'timeout'
-        };
-    }
-    return null;
-}
-// ============ PER-TIER SYSTEM PROMPTS ============
-// Models have different safety training levels. Instead of appending suffixes,
-// we load entirely different system prompts per tier.
-// - flexible: Mistral, Google, DeepSeek (follow system prompts well)
-// - moderate: Cerebras/Qwen, OpenAI/GPT, NVIDIA, Bedrock, OpenRouter (need stronger framing)
-// - strict: Groq/Llama, SambaNova/Llama (heaviest safety RLHF, need maximum framing)
-const fs = require('fs');
-const _path = require('path');
-const promptsDir = _path.join(__dirname, '..', '..', 'config', 'prompts');
-const _promptCache = {};
-const _promptMtimes = {};
-function loadTierPrompt(tier) {
-    const filePath = _path.join(promptsDir, `${tier}.txt`);
-    try {
-        const stat = fs.statSync(filePath);
-        if (_promptCache[tier] && _promptMtimes[tier] === stat.mtimeMs) {
-            return _promptCache[tier];
-        }
-        _promptCache[tier] = fs.readFileSync(filePath, 'utf8').trim();
-        _promptMtimes[tier] = stat.mtimeMs;
-    } catch (err) {
-        console.warn(`[AIExecution] Failed to load ${tier}.txt prompt, falling back to flexible:`, err.message);
-        if (tier !== 'flexible') return loadTierPrompt('flexible');
-        _promptCache[tier] = null;
-    }
-    return _promptCache[tier];
-}
-const FAMILY_TIER = {
-    mistral: 'flexible',
-    google: 'flexible',
-    deepseek: 'flexible',
-    cerebras: 'moderate',
-    openai: 'moderate',
-    nvidia: 'moderate',
-    bedrock: 'moderate',
-    openrouter: 'moderate',
-    ollama: 'moderate',
-    groq: 'strict',
-    sambanova: 'strict',
-};
-function resolveSystemPrompt(composedPrompt, provider) {
-    const family = String(provider?.family || '').toLowerCase();
-    const tier = FAMILY_TIER[family];
-    if (!tier || tier === 'flexible') return composedPrompt;
-    const tierPrompt = loadTierPrompt(tier);
-    if (!tierPrompt) return composedPrompt;
-    // Preserve runtime additions (mood adjustment) appended by jarvis-core.
-    // The closing anchor is redundant — tier prompts have their own.
-    const toneMatch = composedPrompt.match(/\n\n\[TONE ADJUSTMENT:[^\]]*\]/);
-    return tierPrompt + (toneMatch ? toneMatch[0] : '');
-}
 // ============ EXECUTION ENGINE ============
 /**
  * Core generation execution - tries each provider in order with retry logic.
- * @param {AIProviderManager} manager - The provider manager instance
- * @param {string} userId - Optional user ID for session stickiness
  */
 async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, userId = null) {
-    // Safety check: reinitialize providers if somehow empty
     if (manager.providers.length === 0) {
         console.warn('Provider list was empty - reinitializing providers...');
         manager.setupProviders();
@@ -637,18 +61,12 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         const rankedProviders = manager._rankedProviders();
         const orderedCandidates = rankedProviders.filter(provider => !attemptedProviders.has(provider.name));
         const provider = orderedCandidates[0];
-        if (!provider) {
-            break;
-        }
+        if (!provider) {break;}
         attemptedProviders.add(provider.name);
         const started = Date.now();
         const callOnce = async() => {
             const effectiveSystemPrompt = resolveSystemPrompt(systemPrompt, provider);
             if (provider.type === 'google') {
-                // Gemma 3 and below don't support systemInstruction — inject it into the user
-                // message instead. For Gemini/Gemma preview models, leave thinkingConfig unset:
-                // some models reject thinkingBudget=0 outright and hidden thought parts are
-                // already filtered out below.
                 const isGemmaLegacy = /^gemma-[1-3]/i.test(provider.model);
                 const model = provider.client.getGenerativeModel(
                     isGemmaLegacy
@@ -665,12 +83,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 let result;
                 try {
                     result = await model.generateContent({
-                        contents: [
-                            {
-                                role: 'user',
-                                parts: [{ text: effectiveUserPrompt }]
-                            }
-                        ],
+                        contents: [{ role: 'user', parts: [{ text: effectiveUserPrompt }] }],
                         generationConfig: {
                             temperature: config.ai?.temperature ?? 0.7,
                             maxOutputTokens: maxTokens
@@ -683,39 +96,29 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 const blockReason = response?.promptFeedback?.blockReason;
                 if (blockReason) {
                     throw Object.assign(new Error(`Gemini blocked: ${blockReason}`), {
-                        status: 400,
-                        providerFault: false
+                        status: 400, providerFault: false
                     });
                 }
                 const finishReason = response?.candidates?.[0]?.finishReason;
                 if (finishReason === 'SAFETY') {
                     throw Object.assign(new Error('Gemini safety filter triggered'), {
-                        status: 400,
-                        providerFault: false
+                        status: 400, providerFault: false
                     });
                 }
-                // Extract text from response parts, skipping thinking/thought parts
                 const allParts =
-                    response?.candidates?.flatMap(
-                        candidate => candidate?.content?.parts || []
-                    ) || [];
+                    response?.candidates?.flatMap(candidate => candidate?.content?.parts || []) || [];
                 let text = allParts
                     .filter(part => !part?.thought)
                     .map(part => {
-                        if (typeof part?.text === 'string') {
-                            return part.text;
-                        }
+                        if (typeof part?.text === 'string') {return part.text;}
                         if (part?.inlineData?.data) {
-                            return Buffer.from(part.inlineData.data, 'base64').toString(
-                                'utf8'
-                            );
+                            return Buffer.from(part.inlineData.data, 'base64').toString('utf8');
                         }
                         return null;
                     })
                     .filter(Boolean)
                     .join('\n')
                     .trim();
-                // Fallback to response.text() if parts extraction yielded nothing
                 if (!text) {
                     try {
                         text = typeof response?.text === 'function' ? response.text() : null;
@@ -726,16 +129,12 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 if (!text) {
                     const debugInfo = finishReason ? ` (finishReason: ${finishReason})` : '';
                     throw Object.assign(
-                        new Error(
-                            `Invalid or empty response from ${provider.name}${debugInfo}`
-                        ),
+                        new Error(`Invalid or empty response from ${provider.name}${debugInfo}`),
                         { status: 502 }
                     );
                 }
                 let cleaned = sanitizeAssistantMessage(text);
-                if (!cleaned && text) {
-                    cleaned = text.trim();
-                }
+                if (!cleaned && text) {cleaned = text.trim();}
                 if (!cleaned) {
                     throw Object.assign(
                         new Error(`Sanitized empty content from ${provider.name}`),
@@ -761,9 +160,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                         num_predict: maxTokens
                     }
                 };
-                const headers = {
-                    'Content-Type': 'application/json'
-                };
+                const headers = { 'Content-Type': 'application/json' };
                 if (provider.apiKey) {
                     headers['Authorization'] = `Bearer ${provider.apiKey}`;
                 }
@@ -875,7 +272,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                         status: response.status
                     });
                 }
-                // Handle SSE stream - collect all chunks
                 const text = await response.text();
                 let fullContent = '';
                 const lines = text.split('\n');
@@ -885,9 +281,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                         if (jsonStr === '[DONE]') {continue;}
                         try {
                             const chunk = JSON.parse(jsonStr);
-                            if (chunk.response) {
-                                fullContent += chunk.response;
-                            }
+                            if (chunk.response) {fullContent += chunk.response;}
                         } catch { }
                     }
                 }
@@ -971,12 +365,10 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             if (provider.name.startsWith('OpenRouter')) {
                 manager.openRouterFailureCount = 0;
             }
-            // Reset failure count on success (for exponential backoff)
             if (manager.providerFailureCounts.has(provider.name)) {
                 manager.providerFailureCounts.delete(provider.name);
             }
             console.log(`Success with ${provider.name} (${provider.model}) in ${latency}ms`);
-            // Track tokens from response
             manager.totalRequests++;
             manager.successfulRequests++;
             const tokensIn = resp?.usage?.prompt_tokens || 0;
@@ -988,7 +380,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             manager.scheduleStateSave();
             const raw = resp?.choices?.[0]?.message?.content;
             const cleaned = raw ? String(raw) : '';
-            // Detect truncated responses (hit max_tokens limit)
             const finishReason = resp?.choices?.[0]?.finish_reason;
             const wasTruncated = finishReason === 'length';
             if (wasTruncated) {
@@ -1019,7 +410,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 );
             }
             lastError = error;
-            // Circuit breaker — rate limits and overloaded providers get cooldowns
             const cooldownPolicy = resolveCooldownPolicy(provider, error);
             if (cooldownPolicy) {
                 benchProvider(
@@ -1036,10 +426,10 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 const currentFailures = (manager.providerFailureCounts.get(provider.name) || 0) + 1;
                 manager.providerFailureCounts.set(provider.name, currentFailures);
                 const backoffDurations = [
-                    2 * 60 * 1000,      // 1st failure: 2 minutes
-                    10 * 60 * 1000,     // 2nd failure: 10 minutes
-                    30 * 60 * 1000,     // 3rd failure: 30 minutes
-                    60 * 60 * 1000      // 4th+ failure: 1 hour (max)
+                    2 * 60 * 1000,
+                    10 * 60 * 1000,
+                    30 * 60 * 1000,
+                    60 * 60 * 1000
                 ];
                 const backoffIndex = Math.min(currentFailures - 1, backoffDurations.length - 1);
                 const disableDuration = backoffDurations[backoffIndex];
@@ -1051,10 +441,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                     { source: 'provider-execution' }
                 );
             }
-            // Track OpenRouter consecutive empties to toggle global failure
-            const isEmptyResponse = String(error.message || '')
-                .toLowerCase()
-                .includes('empty');
+            const isEmptyResponse = String(error.message || '').toLowerCase().includes('empty');
             if (isEmptyResponse && provider.name.startsWith('OpenRouter')) {
                 manager.openRouterFailureCount += 1;
                 if (manager.openRouterFailureCount >= 2) {
@@ -1072,7 +459,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                         );
                         manager.scheduleStateSave();
                     };
-                    // Canary after 5 minutes to re-enable sooner if transient
                     setTimeout(
                         () => {
                             const canary = manager.providers.find(
@@ -1088,9 +474,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                                     model: canary.model,
                                     messages: [{ role: 'user', content: 'ping' }]
                                 })
-                                .then(() => {
-                                    clearGlobal();
-                                })
+                                .then(() => { clearGlobal(); })
                                 .catch(() => {
                                     setTimeout(clearGlobal, Math.max(0, clearAfter - 5 * 60 * 1000)).unref?.();
                                 });
@@ -1103,17 +487,8 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
     }
     throw new Error(`All AI providers failed: ${lastError?.message || 'Unknown error'}`);
 }
+
 // ============ IMAGE/VISION PIPELINE ============
-/**
- * Generate a response with image support (for vision-capable models like Ollama).
- * @param {AIProviderManager} manager - The provider manager instance
- * @param {string} systemPrompt - System prompt for the AI
- * @param {string} userPrompt - User message/prompt
- * @param {Array<{url: string, contentType?: string}>} images - Array of image objects with URLs
- * @param {number} maxTokens - Maximum tokens in response
- * @param {Object} options - Additional options (including userId)
- * @returns {Promise<{content: string, provider: string, tokensIn: number, tokensOut: number}>}
- */
 async function generateResponseWithImages(
     manager,
     systemPrompt,
@@ -1123,14 +498,11 @@ async function generateResponseWithImages(
     options = {}
 ) {
     const { allowModerationOnly = false, userId = null } = options;
-    // If no images, fall back to regular generateResponse
     if (!images || images.length === 0) {
         return manager.generateResponse(systemPrompt, userPrompt, maxTokens);
     }
-    // Ensure prompts are strings
     systemPrompt = systemPrompt != null ? String(systemPrompt) : '';
     userPrompt = userPrompt != null ? String(userPrompt) : '';
-    // Safety check: reinitialize providers if somehow empty
     if (manager.providers.length === 0) {
         console.warn('Provider list was empty - reinitializing providers...');
         manager.setupProviders();
@@ -1138,7 +510,6 @@ async function generateResponseWithImages(
             throw new Error('No AI providers available - check API key configuration');
         }
     }
-    // Filter for providers that support images (Ollama with vision models)
     const imageCapableProviders = manager.providers.filter(
         p => p.supportsImages && p.type === 'ollama' && (allowModerationOnly || !p.moderationOnly)
     );
@@ -1148,23 +519,15 @@ async function generateResponseWithImages(
         );
         return manager.generateResponse(systemPrompt, userPrompt, maxTokens);
     }
-    // Download and convert images to base64
     const base64Images = [];
     for (const image of images) {
         try {
             const imageUrl = image.url || image;
-            // Validate URL — only allow http/https to prevent SSRF
             if (typeof imageUrl !== 'string' || !/^https?:\/\//i.test(imageUrl)) {
                 console.warn(`Rejected non-HTTP image URL: ${imageUrl}`);
                 continue;
             }
-            const supportedTypes = [
-                'image/jpeg',
-                'image/jpg',
-                'image/png',
-                'image/webp',
-                'image/gif'
-            ];
+            const supportedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
             const contentType = image.contentType || '';
             const response = await aiFetch(imageUrl);
             if (!response.ok) {
@@ -1173,13 +536,11 @@ async function generateResponseWithImages(
             }
             const arrayBuffer = await response.arrayBuffer();
             let buffer = Buffer.from(arrayBuffer);
-            // Prevent OOM from malicious large images (10MB limit)
             const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
             if (buffer.length > MAX_IMAGE_SIZE_BYTES) {
                 console.warn(`Image too large (${(buffer.length / 1024 / 1024).toFixed(1)}MB), skipping: ${imageUrl}`);
                 continue;
             }
-            // Check content type from response or URL extension
             let mimeType = response.headers.get('content-type') || contentType;
             if (!mimeType) {
                 const ext = imageUrl.split('.').pop()?.toLowerCase().split('?')[0];
@@ -1196,12 +557,9 @@ async function generateResponseWithImages(
                 console.warn(`Unsupported image type: ${mimeType}`);
                 continue;
             }
-            // For GIFs, extract the first frame and convert to PNG
             if (mimeType.includes('gif')) {
                 try {
-                    buffer = await sharp(buffer, { pages: 1 })
-                        .png()
-                        .toBuffer();
+                    buffer = await sharp(buffer, { pages: 1 }).png().toBuffer();
                     console.log('[Image] Extracted first frame from GIF');
                 } catch (gifErr) {
                     console.warn(`Failed to extract GIF frame: ${gifErr.message}`);
@@ -1218,23 +576,22 @@ async function generateResponseWithImages(
         return manager.generateResponse(systemPrompt, userPrompt, maxTokens);
     }
     let lastError = null;
-    // Check how many are actually available (not disabled)
     const availableProviders = imageCapableProviders.filter(p => {
         const disabledUntil = manager.disabledProviders.get(p.name);
         return !disabledUntil || disabledUntil <= Date.now();
     });
-        if (availableProviders.length === 0 && imageCapableProviders.length > 0) {
-            console.warn(
-                `All ${imageCapableProviders.length} Ollama providers are temporarily disabled, clearing disabled state...`
-            );
-            for (const p of imageCapableProviders) {
-                if (typeof manager.clearProviderCooldown === 'function') {
-                    manager.clearProviderCooldown(p.name);
-                } else {
-                    manager.disabledProviders.delete(p.name);
-                }
+    if (availableProviders.length === 0 && imageCapableProviders.length > 0) {
+        console.warn(
+            `All ${imageCapableProviders.length} Ollama providers are temporarily disabled, clearing disabled state...`
+        );
+        for (const p of imageCapableProviders) {
+            if (typeof manager.clearProviderCooldown === 'function') {
+                manager.clearProviderCooldown(p.name);
+            } else {
+                manager.disabledProviders.delete(p.name);
             }
         }
+    }
     for (const provider of imageCapableProviders) {
         const started = Date.now();
         const disabledUntil = manager.disabledProviders.get(provider.name);
@@ -1260,9 +617,7 @@ async function generateResponseWithImages(
                         num_predict: maxTokens
                     }
                 };
-                const headers = {
-                    'Content-Type': 'application/json'
-                };
+                const headers = { 'Content-Type': 'application/json' };
                 if (provider.apiKey) {
                     headers['Authorization'] = `Bearer ${provider.apiKey}`;
                 }
@@ -1337,7 +692,6 @@ async function generateResponseWithImages(
                 `Failed with ${provider.name} (${provider.model}) [image] after ${latency}ms: ${error.message}`
             );
             lastError = error;
-            // Only disable provider for hard failures, not transient ones
             if (!error.transient) {
                 if (typeof manager.setProviderCooldown === 'function') {
                     manager.setProviderCooldown(
@@ -1355,7 +709,6 @@ async function generateResponseWithImages(
             }
         }
     }
-    // If all image providers failed, try without images as fallback
     console.warn(
         `All image-capable providers failed (last error: ${lastError?.message}), attempting text-only fallback`
     );
@@ -1365,6 +718,7 @@ async function generateResponseWithImages(
         maxTokens
     );
 }
+
 module.exports = {
     benchProvider,
     executeGeneration,

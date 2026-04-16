@@ -233,12 +233,12 @@ if (strippedContent && /\bis\s+this\s+tuff\b/i.test(strippedContent)) {
     if (limited) {return;}
 
     try {
-        // Use specific bot emoji
-        const emojiString = '<:wilted_rose:1462415423327703260>';
+        const appEmojis = require('../app-emojis');
+        const emojiString = appEmojis.get('wilted_rose');
 
-        await message.reply({ 
-            content: `Fuh naw, sir 💔 ${emojiString}`, 
-            allowedMentions: { parse: [] } 
+        await message.reply({
+            content: `Fuh naw, sir 💔 ${emojiString}`,
+            allowedMentions: { parse: [] }
         });
         return; // Exit early
     } catch (error) {
