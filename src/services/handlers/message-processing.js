@@ -234,7 +234,7 @@ if (strippedContent && /\bis\s+this\s+tuff\b/i.test(strippedContent)) {
 
     try {
         await message.reply({
-            content: 'Fuh naw, sir 💔 🥀',
+            content: 'Fuh naw, sir 💔 <:wilted_rose:1462415423327703260>',
             allowedMentions: { parse: [] }
         });
         return; // Exit early

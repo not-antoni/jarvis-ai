@@ -110,7 +110,7 @@ async function handleJarvis(interaction, jarvis) {
 
     // Fuh Naw bypass
     if (prompt && /\bis\s+this\s+tuff\b/i.test(prompt)) {
-        return 'Fuh naw, sir 💔 🥀';
+        return 'Fuh naw, sir 💔 <:wilted_rose:1462415423327703260>';
     }
 
     // Peak bypass
