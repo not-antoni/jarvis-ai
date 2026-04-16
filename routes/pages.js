@@ -510,8 +510,13 @@ const AGIS_PAGE = `
         }
         .terminal-body {
             padding: 1rem;
-            min-height: 120px;
+            height: 160px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
         }
+        .terminal-body::-webkit-scrollbar { width: 0; }
+        .terminal-body { scrollbar-width: none; }
         .chat-line {
             margin-bottom: 0.6rem;
             font-size: 0.85rem;
@@ -578,8 +583,7 @@ const AGIS_PAGE = `
         /* Tablet */
         @media (max-width: 1024px) {
             .agis-hero { padding: 4rem 5% 2rem; }
-            .terminals { max-width: 100%; padding: 1.25rem 5% 2rem; grid-template-columns: repeat(2, 1fr); }
-            .terminals .terminal:nth-child(3) { grid-column: 1 / -1; max-width: 50%; justify-self: center; }
+            .terminals { max-width: 100%; padding: 1.25rem 5% 2rem; grid-template-columns: repeat(3, 1fr); }
         }
 
         /* Mobile */
@@ -600,7 +604,7 @@ const AGIS_PAGE = `
             .nav-links.open { display: flex; }
             nav { position: relative; }
             .terminals { grid-template-columns: 1fr; padding: 1rem 5% 1.5rem; max-width: 100%; }
-            .terminal-body { min-height: 100px; padding: 0.75rem; }
+            .terminal-body { height: 160px; padding: 0.75rem; }
             .chat-line { font-size: 0.8rem; }
             .content { padding: 0 5% 2rem; }
             .content h2 { font-size: 1.15rem; }
@@ -828,26 +832,25 @@ const AGIS_PAGE = `
                 line.className = 'chat-line';
 
                 if (msg.who === 'bot') {
-                    // show typing indicator first
                     const typing = document.createElement('div');
                     typing.className = 'chat-line visible';
                     typing.innerHTML = '<span class="chat-name chat-bot">jarvis</span><span class="typing-cursor"></span>';
                     body.appendChild(typing);
                     body.scrollTop = body.scrollHeight;
-                    await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
+                    await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
                     body.removeChild(typing);
                 }
 
                 const nameClass = msg.who === 'bot' ? 'chat-bot' : 'chat-user';
                 line.innerHTML = '<span class="chat-name ' + nameClass + '">' + msg.name + '</span> <span class="chat-text">' + msg.text + '</span>';
                 body.appendChild(line);
-                await new Promise(r => setTimeout(r, 30));
+                await new Promise(r => setTimeout(r, 50));
                 line.classList.add('visible');
                 body.scrollTop = body.scrollHeight;
-                await new Promise(r => setTimeout(r, msg.who === 'user' ? 900 : 1200));
+                await new Promise(r => setTimeout(r, msg.who === 'user' ? 1500 : 2000));
             }
 
-            await new Promise(r => setTimeout(r, 3000));
+            await new Promise(r => setTimeout(r, 4000));
             // fade out
             body.style.transition = 'opacity 0.4s';
             body.style.opacity = '0';
