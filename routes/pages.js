@@ -830,7 +830,7 @@ const AGIS_PAGE = `
                     typing.className = 'chat-line visible';
                     typing.innerHTML = '<span class="chat-name chat-bot">jarvis</span><span class="typing-cursor"></span>';
                     body.appendChild(typing);
-                    typing.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    body.scrollTop = body.scrollHeight;
                     await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
                     body.removeChild(typing);
                 }
@@ -840,7 +840,7 @@ const AGIS_PAGE = `
                 body.appendChild(line);
                 await new Promise(r => setTimeout(r, 50));
                 line.classList.add('visible');
-                line.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                body.scrollTop = body.scrollHeight;
                 await new Promise(r => setTimeout(r, msg.who === 'user' ? 1500 : 2000));
             }
 
