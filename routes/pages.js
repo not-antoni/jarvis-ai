@@ -671,7 +671,7 @@ const AGIS_PAGE = `
     </div>
 
     <div class="content">
-        <section class="anim d5">
+        <section class="anim d5" id="about">
             <h2>What even is AGIS</h2>
             <p>AGIS stands for Artificial General Intelligent System. The name came first. The actual framework came later. Or more accurately, it's still coming. The idea was always to build a collection of AI tools and bots that felt different from the usual stuff out there. Not corporate, not sterile, not another ChatGPT wrapper with a Discord skin on it.</p>
             <p>Right now AGIS is a brand, a community, and the home of everything we build. The Discord server is called <a href="${DISCORD_INVITE}" target="_blank">AGIS Operations</a> and that's where most of the action happens. People use the bots, report bugs, request features, and sometimes just hang out. It's less "official support server" and more "group chat where things occasionally get fixed."</p>

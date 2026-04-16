@@ -627,7 +627,6 @@ const LANDING_PAGE = `
         <button class="menu-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">&#9776;</button>
         <ul class="nav-links">
             <li><a href="#features">Features</a></li>
-            <li><a href="#about">About</a></li>
             <li><a href="/agis">AGIS</a></li>
             <li><a href="${DISCORD_INVITE}" target="_blank">Support</a></li>
         </ul>
@@ -739,7 +738,7 @@ const LANDING_PAGE = `
             </div>
         </section>
 
-        <section class="about-section" id="about">
+        <section class="about-section">
             <h2>About AGIS</h2>
             <p>AGIS stands for Artificial General Intelligent System. It started as a name for a framework that didn't exist yet. The name stuck, the framework is still a work in progress, but the things built under it are very real and used by thousands of people every day.</p>
             <p>Jarvis is the first and main project under AGIS. He started as a joke bot in a friend's Discord server and turned into something way bigger than expected. Now he's running on over 500 servers, talking to people across the world, handling voice calls, playing music, moderating servers, and doing it all for free. There's no premium version. There's no "upgrade to unlock this feature." Everything just works out of the box.</p>
