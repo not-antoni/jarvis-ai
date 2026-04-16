@@ -408,14 +408,6 @@ client.once(Events.ClientReady, async() => {
         console.warn('Failed to start temp sweep job:', e);
     }
 
-    // Start Daily Meme Scheduler
-    try {
-        const memeSender = require('./src/services/meme-sender');
-        memeSender.start(client);
-    } catch (e) {
-        console.warn('Failed to start meme sender:', e);
-    }
-
     const providerStatus = aiManager.getProviderStatus();
     const working = providerStatus.filter(p => !p.hasError && !p.isDisabled).length;
     console.log(`Provider status on startup: ${working}/${providerStatus.length} models available`);
