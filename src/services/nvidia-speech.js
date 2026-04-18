@@ -7,7 +7,7 @@ const protoLoader = require('@grpc/proto-loader');
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const GRPC_SERVER   = 'grpc.nvcf.nvidia.com:443';
-const ASR_FUNC_ID   = '1598d209-5e27-4d3c-8079-4751568b1081';  // Parakeet CTC 1.1B
+const ASR_FUNC_ID   = 'd3fe9151-442b-4204-a70d-5fcc597fd610';  // Parakeet TDT 0.6B V2
 const TTS_FUNC_ID   = '55cf67bf-600f-4b04-8eac-12ed39537a08';  // Magpie TTS Zeroshot
 const PROTO_ROOT    = path.join(__dirname, '../../proto/nvidia-riva-common');
 

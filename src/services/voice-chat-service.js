@@ -14,7 +14,6 @@ const {
 } = require('@discordjs/voice');
 const { Readable } = require('node:stream');
 const nvidiaSpeech = require('./nvidia-speech');
-const openaiStt = require('./openai-stt');
 const config = require('../../config');
 const { musicManager } = require('../core/musicManager');
 const { isCpuThrottled, getCpuFreqMHz } = require('../utils/cpu-monitor');
@@ -93,13 +92,9 @@ class VoiceChatService {
     init(client, jarvis) {
         this.client = client;
         this.jarvis = jarvis;
-        const sttStatus = openaiStt.enabled
-            ? `openai:${openaiStt.model}`
-            : nvidiaSpeech.sttEnabled
-                ? 'nvidia'
-                : 'off';
+        const sttStatus = nvidiaSpeech.sttEnabled ? 'nvidia' : 'off';
         const opusStatus = this._getOpusDecoderBackend();
-        if (openaiStt.enabled || nvidiaSpeech.enabled) {
+        if (nvidiaSpeech.enabled) {
             console.log(
                 `[VoiceChat] Ready — STT: ${sttStatus}, ` +
                 `TTS: ${nvidiaSpeech.ttsEnabled ? 'on' : 'off'}, ` +
@@ -296,7 +291,7 @@ class VoiceChatService {
     }
 
     async _autoAttach(guildId, channelId) {
-        if (!openaiStt.enabled && !nvidiaSpeech.sttEnabled) return;
+        if (!nvidiaSpeech.sttEnabled) return;
         const connection = getVoiceConnection(guildId);
         if (!connection) return;
 
@@ -442,24 +437,10 @@ class VoiceChatService {
     }
 
     async _transcribeSpeech(session, userId, wav, tag = 'full') {
-        if (!wav) {
-            return null;
-        }
-
-        if (openaiStt.enabled) {
-            const text = await openaiStt.transcribe(wav, {
-                filename: `vc-${session.guildId}-${userId}-${tag}.wav`,
-                tag
-            });
-            if (text) {
-                return text;
-            }
-        }
-
+        if (!wav) return null;
         if (nvidiaSpeech.sttEnabled) {
             return nvidiaSpeech.transcribe(wav);
         }
-
         return null;
     }
 
