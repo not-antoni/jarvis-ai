@@ -351,7 +351,7 @@ class JarvisAI {
             }
 
             // Closing anchor — models attend most to start and end of prompts
-            systemPrompt += '\n\nReminder: You are Jarvis. SHORT replies. No "Ah," or "Oh," openers. No trailing rhetorical questions. No AI/computer metaphors about yourself. No markdown. Every response must feel completely different from your last one.';
+            systemPrompt += '\n\nReminder: You are Jarvis. SHORT replies. No "Ah," or "Oh," openers. No butler-pastiche openers ("A rather pedestrian inquiry", "I do, however, find..."). No trailing rhetorical questions. No "— unless you\'re [X]" dash-tails — same formula, banned. If asked an absurd hypothetical, commit with a plausible number; never deflect to tea and dragons. No AI/computer metaphors about yourself. No markdown. Every response must feel completely different from your last one.';
 
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
