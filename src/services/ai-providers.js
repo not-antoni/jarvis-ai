@@ -12,9 +12,7 @@ const fsp = fs.promises;
 const PROVIDER_STATE_PATH = path.join(__dirname, '..', '..', 'data', 'provider-state.json');
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
 const GOOGLE_STABLE_MODELS = [
-    'gemini-2.5-pro',
-    'gemini-2.0-flash',
-    'gemma-4-31b-it'
+    'gemini-2.5-flash'
 ];
 const GOOGLE_PREVIEW_MODELS = [
     'gemini-3.1-pro-preview',
@@ -312,6 +310,21 @@ class AIProviderManager {
                 });
             });
         });
+        // ---------- Google AI Trial (Startups credits, GOOGLE_TRIAL) ----------
+        const googleTrialKey = process.env.GOOGLE_TRIAL;
+        if (googleTrialKey) {
+            googleModels.forEach((model) => {
+                this.providers.push({
+                    name: `GoogleAITrial-${model}`,
+                    client: new GoogleGenerativeAI(googleTrialKey),
+                    model,
+                    type: 'google',
+                    family: 'google',
+                    costTier: 'free',
+                    credentialGroup: 'google:trial'
+                });
+            });
+        }
         // ---------- DeepSeek via Vercel AI Gateway (OpenAI-compatible) ----------
         // Auto-discover all AI_GATEWAY_API_KEY, AI_GATEWAY_API_KEY2, etc.
         const deepseekGatewayKeys = discoverEnvKeys('AI_GATEWAY_API_KEY');
