@@ -12,7 +12,7 @@
 # ────────────────────────────────────────────────────────────────────────────
 # Build stage
 # ────────────────────────────────────────────────────────────────────────────
-FROM node:24-bookworm-slim AS builder
+FROM node:25-bookworm-slim AS builder
 
 ENV NODE_ENV=production \
     PUPPETEER_SKIP_DOWNLOAD=1 \
@@ -42,7 +42,7 @@ COPY . .
 # ────────────────────────────────────────────────────────────────────────────
 # Runtime stage
 # ────────────────────────────────────────────────────────────────────────────
-FROM node:24-bookworm-slim AS runtime
+FROM node:25-bookworm-slim AS runtime
 
 ENV NODE_ENV=production \
     PORT=3000 \
