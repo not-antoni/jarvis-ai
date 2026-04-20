@@ -301,6 +301,81 @@ const commandDefinitions = [
         usage: '/serverinfo',
         feature: 'utilities',
         ephemeral: false
+    },
+    // ============ MODERATION ============
+    {
+        name: 'purge',
+        description: 'Bulk delete recent messages, optionally filtered by user.',
+        category: 'Moderation',
+        usage: '/purge count:<1-100> [user]',
+        feature: 'moderation',
+        ephemeral: true
+    },
+    {
+        name: 'timeout',
+        description: 'Timeout a member for a period.',
+        category: 'Moderation',
+        usage: '/timeout user:<member> duration:<10m|2h|1d> [reason]',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'untimeout',
+        description: 'Remove a timeout from a member.',
+        category: 'Moderation',
+        usage: '/untimeout user:<member>',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'ban',
+        description: 'Ban a member from the server.',
+        category: 'Moderation',
+        usage: '/ban user:<member> [reason] [delete_days:0-7]',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'kick',
+        description: 'Kick a member from the server.',
+        category: 'Moderation',
+        usage: '/kick user:<member> [reason]',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'warn',
+        description: 'Issue, list, remove, or clear member warnings.',
+        category: 'Moderation',
+        usage: '/warn add|list|remove|clear',
+        feature: 'moderation',
+        ephemeral: true
+    },
+    // ============ SEARCH ============
+    {
+        name: 'search',
+        description: 'Search the web via Brave Search.',
+        category: 'Utilities',
+        usage: '/search query:<text>',
+        feature: 'webSearch',
+        ephemeral: false
+    },
+    // ============ MUSIC EXTRAS ============
+    {
+        name: 'nowplaying',
+        description: 'Show the currently playing track with a live progress bar.',
+        category: 'Music',
+        usage: '/nowplaying',
+        feature: 'music',
+        ephemeral: false
+    },
+    {
+        name: 'clearqueue',
+        description: 'Clear the music queue without stopping the current track.',
+        category: 'Music',
+        usage: '/clearqueue',
+        feature: 'music',
+        ephemeral: false
     }
 ];
 

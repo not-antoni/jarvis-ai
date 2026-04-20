@@ -1,12 +1,41 @@
 const path = require('path');
 const fs = require('fs');
 
+function serializeError(err) {
+    if (!err || typeof err !== 'object') {return err;}
+    const out = {
+        name: err.name || 'Error',
+        message: err.message || String(err)
+    };
+    if (err.stack) {out.stack = err.stack;}
+    if (err.code !== undefined) {out.code = err.code;}
+    if (err.status !== undefined) {out.status = err.status;}
+    if (err.cause) {
+        out.cause = serializeError(err.cause);
+    }
+    return out;
+}
+
+function normalizeMeta(meta) {
+    if (!meta) {return {};}
+    if (meta instanceof Error) {return { err: serializeError(meta) };}
+    if (typeof meta !== 'object') {return { value: meta };}
+    if (meta.err instanceof Error) {
+        return { ...meta, err: serializeError(meta.err) };
+    }
+    if (meta.error instanceof Error) {
+        return { ...meta, error: serializeError(meta.error) };
+    }
+    return meta;
+}
+
 class Logger {
     constructor() {
         this.logLevel = process.env.LOG_LEVEL || 'info';
         this.logDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
         this.enableFileLogging = process.env.ENABLE_FILE_LOGGING !== 'false';
         this.enableConsoleLogging = process.env.ENABLE_CONSOLE_LOGGING !== 'false';
+        this.defaultMeta = {};
 
         // Ensure log directory exists
         if (this.enableFileLogging) {
@@ -88,47 +117,22 @@ class Logger {
         }
     }
 
-    error(message, meta = {}) {
-        if (!this.shouldLog('error')) {return;}
-
-        const formatted = this.format('error', message, meta);
-        this.writeToFile('error', formatted);
-        this.writeToConsole('error', message, meta);
+    _emit(level, message, meta) {
+        if (!this.shouldLog(level)) {return;}
+        const normalized = { ...(this.defaultMeta || {}), ...normalizeMeta(meta) };
+        const formatted = this.format(level, message, normalized);
+        this.writeToFile(level, formatted);
+        this.writeToConsole(level, message, normalized);
     }
 
-    warn(message, meta = {}) {
-        if (!this.shouldLog('warn')) {return;}
-
-        const formatted = this.format('warn', message, meta);
-        this.writeToFile('warn', formatted);
-        this.writeToConsole('warn', message, meta);
-    }
-
-    info(message, meta = {}) {
-        if (!this.shouldLog('info')) {return;}
-
-        const formatted = this.format('info', message, meta);
-        this.writeToFile('info', formatted);
-        this.writeToConsole('info', message, meta);
-    }
-
-    debug(message, meta = {}) {
-        if (!this.shouldLog('debug')) {return;}
-
-        const formatted = this.format('debug', message, meta);
-        this.writeToFile('debug', formatted);
-        this.writeToConsole('debug', message, meta);
-    }
+    error(message, meta = {}) { this._emit('error', message, meta); }
+    warn(message, meta = {}) { this._emit('warn', message, meta); }
+    info(message, meta = {}) { this._emit('info', message, meta); }
+    debug(message, meta = {}) { this._emit('debug', message, meta); }
 
     child(defaultMeta = {}) {
         const childLogger = Object.create(this);
-        childLogger.defaultMeta = { ...this.defaultMeta, ...defaultMeta };
-
-        const originalFormat = this.format.bind(this);
-        childLogger.format = (level, message, meta = {}) => {
-            return originalFormat(level, message, { ...this.defaultMeta, ...defaultMeta, ...meta });
-        };
-
+        childLogger.defaultMeta = { ...(this.defaultMeta || {}), ...defaultMeta };
         return childLogger;
     }
 
@@ -142,3 +146,5 @@ class Logger {
 const logger = new Logger();
 
 module.exports = logger;
+module.exports.serializeError = serializeError;
+module.exports.Logger = Logger;

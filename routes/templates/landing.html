@@ -144,6 +144,20 @@
 
         .nav-links a:hover { color: #fff; }
 
+        .nav-user-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.3rem 0.8rem 0.3rem 0.35rem;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 999px;
+            color: #ddd !important;
+            font-size: 0.85rem !important;
+        }
+        .nav-user-pill:hover { border-color: rgba(255,255,255,0.2); color: #fff !important; }
+        .nav-user-pill img { width: 24px; height: 24px; border-radius: 50%; display: block; }
+
         .menu-toggle {
             display: none;
             background: none;
@@ -567,6 +581,8 @@
             <li><a href="#features">Features</a></li>
             <li><a href="/agis">AGIS</a></li>
             <li><a href="%%DISCORD_INVITE%%" target="_blank">Support</a></li>
+            <li><a href="/portal">Portal</a></li>
+            <li id="nav-user-slot"><a href="/portal/login" class="nav-user-pill">Sign in</a></li>
         </ul>
     </nav>
     </div>
@@ -759,6 +775,28 @@
         document.querySelectorAll('.nav-links a').forEach(a => {
             a.addEventListener('click', () => document.querySelector('.nav-links').classList.remove('open'));
         });
+
+        // Hydrate nav user slot from /portal/api/me (best-effort, silent on failure)
+        (function hydrateNavUser() {
+            const slot = document.getElementById('nav-user-slot');
+            if (!slot) { return; }
+            const esc = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[c]);
+            fetch('/portal/api/me', { credentials: 'same-origin' })
+                .then((res) => (res.ok ? res.json() : null))
+                .then((payload) => {
+                    if (!payload || !payload.user) { return; }
+                    const u = payload.user;
+                    const name = u.globalName || u.username || 'User';
+                    slot.innerHTML =
+                        '<a href="/portal" class="nav-user-pill" title="Open portal">' +
+                            (u.avatarUrl ? '<img src="' + esc(u.avatarUrl) + '" alt="" loading="lazy">' : '') +
+                            '<span>' + esc(name) + '</span>' +
+                        '</a>';
+                })
+                .catch(() => { /* stay as Sign in */ });
+        })();
     </script>
 </body>
 </html>

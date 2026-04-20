@@ -6,35 +6,8 @@
 /* eslint-disable no-console */
 
 require('dotenv').config();
-const _negativeTimeoutTraces = new Set();
-const _nativeSetTimeout = global.setTimeout;
-function isKnownVoiceTimerDrift(delayMs, stack) {
-    return (
-        typeof stack === 'string' &&
-        stack.includes('@discordjs/voice/dist/index.js') &&
-        stack.includes('prepareNextAudioFrame')
-    );
-}
-global.setTimeout = function tracedSetTimeout(callback, delay, ...args) {
-    const numericDelay = Number(delay);
-    if (Number.isFinite(numericDelay) && numericDelay < 0) {
-        const trace = new Error(
-            `[TimerTrace] Negative setTimeout delay detected: ${numericDelay}ms`
-        ).stack || '';
-        if (!isKnownVoiceTimerDrift(numericDelay, trace)) {
-            const signature = trace
-                .split('\n')
-                .slice(1, 4)
-                .join('\n');
-            if (!_negativeTimeoutTraces.has(signature)) {
-                _negativeTimeoutTraces.add(signature);
-                console.warn(trace);
-            }
-        }
-        return _nativeSetTimeout.call(this, callback, 0, ...args);
-    }
-    return _nativeSetTimeout.call(this, callback, delay, ...args);
-};
+const { installVoiceTimerGuard } = require('./src/utils/voice-timer-guard');
+installVoiceTimerGuard();
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

@@ -2,6 +2,19 @@
 
 const config = require('../../../config');
 
+/**
+ * How long to bench a credential group after a daily-quota exhaustion
+ * (Google 429 with "Limit: 0" / "billing details"). The old value of 30m
+ * caused ~48 probe/day once a key ran out — each probe is itself a 429 and
+ * can keep pushing the exhaustion forward. Two hours strikes a balance
+ * between "give up for the day" and "retry occasionally in case the user
+ * upgraded their plan". Override with PERMANENT_QUOTA_BENCH_MS.
+ */
+const PERMANENT_QUOTA_BENCH_MS = Math.max(
+    5 * 60 * 1000,
+    Number(process.env.PERMANENT_QUOTA_BENCH_MS) || 2 * 60 * 60 * 1000
+);
+
 function getProviderAttemptTimeoutMs(provider) {
     if (provider?.attemptTimeoutMs && Number.isFinite(provider.attemptTimeoutMs)) {
         return Math.max(250, provider.attemptTimeoutMs);
@@ -60,7 +73,10 @@ function benchProvider(manager, provider, durationMs, reason, options = {}) {
     const scope = includeCredentialGroup && provider?.credentialGroup
         ? `${provider.name} (${provider.credentialGroup})`
         : provider.name;
-    console.log(`${scope} benched ${formatDurationLabel(cooldownMs)} (${reason})`);
+    // ISO time (UTC, seconds precision) keeps logs grep-friendly and makes the
+    // unbench moment obvious without dragging in timezone helpers.
+    const etaIso = new Date(until).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    console.log(`${scope} benched ${formatDurationLabel(cooldownMs)} (${reason}, until ${etaIso})`);
 }
 
 function resolveCooldownPolicy(provider, error) {
@@ -75,9 +91,9 @@ function resolveCooldownPolicy(provider, error) {
     if (status === 429) {
         if (error?.permanentQuota) {
             return {
-                durationMs: 30 * 60 * 1000,
+                durationMs: PERMANENT_QUOTA_BENCH_MS,
                 includeCredentialGroup: true,
-                reason: 'quota unavailable for credential'
+                reason: 'quota unavailable for credential (daily limit reached)'
             };
         }
         const retryDelayMs = Number(error?.retryDelayMs);

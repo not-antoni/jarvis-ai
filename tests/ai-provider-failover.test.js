@@ -140,10 +140,10 @@ test('same request benches a quota-exhausted Google credential group and fails o
 
     assert.equal(Boolean(flashCooldown?.disabledUntil > Date.now()), true);
     assert.equal(Boolean(gemmaCooldown?.disabledUntil > Date.now()), true);
-    assert.equal(flashCooldown?.reason, 'quota unavailable for credential');
+    assert.equal(flashCooldown?.reason, 'quota unavailable for credential (daily limit reached)');
     assert.equal(flashCooldown?.source, 'provider-execution');
     assert.equal(flashCooldown?.credentialGroup, 'google:1');
-    assert.equal(gemmaCooldown?.reason, 'quota unavailable for credential');
+    assert.equal(gemmaCooldown?.reason, 'quota unavailable for credential (daily limit reached)');
     assert.equal(gemmaCooldown?.source, 'provider-execution');
 
     const providerStatus = manager.getProviderStatus();
@@ -155,7 +155,7 @@ test('same request benches a quota-exhausted Google credential group and fails o
     );
 
     assert.equal(flashStatus?.isDisabled, true);
-    assert.equal(flashStatus?.disabledReason, 'quota unavailable for credential');
+    assert.equal(flashStatus?.disabledReason, 'quota unavailable for credential (daily limit reached)');
     assert.equal(flashStatus?.disabledSource, 'provider-execution');
     assert.equal(flashStatus?.credentialGroup, 'google:1');
     assert.equal(gemmaStatus?.isDisabled, true);

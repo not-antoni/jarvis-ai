@@ -13,6 +13,9 @@ const memberLog = require('./member-log');
 const memoryHandler = require('./memory-handler');
 const slashSocial = require('./slash-social');
 const slashUtility = require('./slash-utility');
+const moderationCommands = require('./moderation-commands');
+const warnCommands = require('./warn-commands');
+const searchCommands = require('./search-commands');
 const {
     getBlockedUserIds,
     isGuildUserBlacklisted,
@@ -583,6 +586,41 @@ async function handle(handler, interaction) {
                 telemetryMetadata.category = 'operations';
                 response = await handleChannel(interaction, handler);
                 break;
+            }
+            case 'purge': {
+                telemetryMetadata.category = 'moderation';
+                await moderationCommands.handlePurge(interaction, handler);
+                return;
+            }
+            case 'timeout': {
+                telemetryMetadata.category = 'moderation';
+                await moderationCommands.handleTimeout(interaction, handler);
+                return;
+            }
+            case 'untimeout': {
+                telemetryMetadata.category = 'moderation';
+                await moderationCommands.handleUntimeout(interaction, handler);
+                return;
+            }
+            case 'ban': {
+                telemetryMetadata.category = 'moderation';
+                await moderationCommands.handleBan(interaction, handler);
+                return;
+            }
+            case 'kick': {
+                telemetryMetadata.category = 'moderation';
+                await moderationCommands.handleKick(interaction, handler);
+                return;
+            }
+            case 'warn': {
+                telemetryMetadata.category = 'moderation';
+                await warnCommands.handleWarnCommand(interaction, handler);
+                return;
+            }
+            case 'search': {
+                telemetryMetadata.category = 'search';
+                await searchCommands.handleSearchCommand(interaction);
+                return;
             }
             default: {
                 response = await handler.jarvis.handleUtilityCommand(

@@ -405,9 +405,21 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             manager.scheduleStateSave();
             const errStatus = error?.status || error?.response?.status;
             if (errStatus !== 429) {
-                console.error(
-                    `Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${errStatus ? `(Status: ${errStatus})` : ''}`
-                );
+                // Content-policy blocks (prompt-side, providerFault:false) aren't
+                // provider failures — they're Google's fixed input filter or
+                // similar. Log at warn level with a clearer prefix so operators
+                // don't mistake them for outages.
+                const isPromptBlocked = error?.providerFault === false &&
+                    (error?.promptBlocked || /blocked|safety|prohibited_content/i.test(String(error?.message || '')));
+                if (isPromptBlocked) {
+                    console.warn(
+                        `[ContentBlocked] ${provider.name} (${provider.model}) refused prompt after ${latency}ms: ${error.message}`
+                    );
+                } else {
+                    console.error(
+                        `Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${errStatus ? `(Status: ${errStatus})` : ''}`
+                    );
+                }
             }
             lastError = error;
             const cooldownPolicy = resolveCooldownPolicy(provider, error);

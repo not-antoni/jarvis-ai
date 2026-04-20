@@ -113,7 +113,9 @@ const rawConfig = {
             statusMessages: 'statusMessages',
             commandMetrics: 'commandMetrics',
             commandSyncState: 'commandSyncState',
-            reminders: 'reminders'
+            reminders: 'reminders',
+            memberWarnings: 'memberWarnings',
+            portalSessions: 'portalSessions'
         },
         vaultCollections: {
             userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',
@@ -235,7 +237,9 @@ const rawConfig = {
         newsBriefings: true,
         music: true,
         memeTools: true,
-        funUtilities: true
+        funUtilities: true,
+        moderation: true,
+        webSearch: true
     }
 };
 

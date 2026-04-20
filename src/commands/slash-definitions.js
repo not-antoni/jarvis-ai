@@ -4,7 +4,8 @@ const {
     SlashCommandBuilder,
     ChannelType,
     InteractionContextType,
-    ApplicationIntegrationType
+    ApplicationIntegrationType,
+    PermissionFlagsBits
 } = require('discord.js');
 const { commandList: musicCommandList } = require('./music');
 const { commandFeatureMap } = require('../core/command-registry');
@@ -271,8 +272,7 @@ const allCommands = [
                             opt.setName('words').setDescription('Words or phrases for this extra filter').setRequired(true)
                         )
                 )
-        )
-        .setContexts([InteractionContextType.Guild]),
+        ),
     new SlashCommandBuilder()
         .setName('serverstats')
         .setDescription('Manage Jarvis server statistics channels')
@@ -548,6 +548,123 @@ const allCommands = [
         .setName('leave')
         .setDescription('Jarvis disconnects from the current voice channel')
         .setContexts([InteractionContextType.Guild]),
+
+    // ============ MODERATION ============
+    new SlashCommandBuilder()
+        .setName('purge')
+        .setDescription('Bulk delete recent messages in this channel (moderator only)')
+        .setContexts([InteractionContextType.Guild])
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+        .addIntegerOption(opt =>
+            opt.setName('count')
+                .setDescription('Number of messages to delete (1-100)')
+                .setMinValue(1)
+                .setMaxValue(100)
+                .setRequired(true)
+        )
+        .addUserOption(opt =>
+            opt.setName('user')
+                .setDescription('Only delete messages from this user')
+                .setRequired(false)
+        ),
+    new SlashCommandBuilder()
+        .setName('timeout')
+        .setDescription('Timeout a member for a period (moderator only)')
+        .setContexts([InteractionContextType.Guild])
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+        .addUserOption(opt =>
+            opt.setName('user').setDescription('Member to timeout').setRequired(true)
+        )
+        .addStringOption(opt =>
+            opt.setName('duration')
+                .setDescription('Duration, e.g. "10m", "2h", "1d" (max 28d)')
+                .setRequired(true)
+        )
+        .addStringOption(opt =>
+            opt.setName('reason').setDescription('Reason for audit log').setRequired(false)
+        ),
+    new SlashCommandBuilder()
+        .setName('untimeout')
+        .setDescription('Remove a timeout from a member (moderator only)')
+        .setContexts([InteractionContextType.Guild])
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+        .addUserOption(opt =>
+            opt.setName('user').setDescription('Member to release').setRequired(true)
+        ),
+    new SlashCommandBuilder()
+        .setName('ban')
+        .setDescription('Ban a member from the server (moderator only)')
+        .setContexts([InteractionContextType.Guild])
+        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+        .addUserOption(opt =>
+            opt.setName('user').setDescription('Member to ban').setRequired(true)
+        )
+        .addStringOption(opt =>
+            opt.setName('reason').setDescription('Reason for audit log').setRequired(false)
+        )
+        .addIntegerOption(opt =>
+            opt.setName('delete_days')
+                .setDescription('Delete messages from this user across N days (0-7)')
+                .setMinValue(0)
+                .setMaxValue(7)
+                .setRequired(false)
+        ),
+    new SlashCommandBuilder()
+        .setName('kick')
+        .setDescription('Kick a member from the server (moderator only)')
+        .setContexts([InteractionContextType.Guild])
+        .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
+        .addUserOption(opt =>
+            opt.setName('user').setDescription('Member to kick').setRequired(true)
+        )
+        .addStringOption(opt =>
+            opt.setName('reason').setDescription('Reason for audit log').setRequired(false)
+        ),
+    new SlashCommandBuilder()
+        .setName('warn')
+        .setDescription('Manage member warnings (moderator only)')
+        .setContexts([InteractionContextType.Guild])
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+        .addSubcommand(sub =>
+            sub.setName('add')
+                .setDescription('Issue a warning to a member')
+                .addUserOption(opt =>
+                    opt.setName('user').setDescription('Member to warn').setRequired(true)
+                )
+                .addStringOption(opt =>
+                    opt.setName('reason').setDescription('Why the warning').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('list')
+                .setDescription('Show warnings for a member or everyone')
+                .addUserOption(opt =>
+                    opt.setName('user').setDescription('Member to inspect').setRequired(false)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('remove')
+                .setDescription('Remove a warning by id')
+                .addStringOption(opt =>
+                    opt.setName('id').setDescription('Warning id (from /warn list)').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('clear')
+                .setDescription('Clear all warnings for a member')
+                .addUserOption(opt =>
+                    opt.setName('user').setDescription('Member to clear').setRequired(true)
+                )
+        ),
+
+    // ============ SEARCH ============
+    withCtx(new SlashCommandBuilder()
+        .setName('search')
+        .setDescription('Search the web via Brave Search')
+        .addStringOption(opt =>
+            opt.setName('query').setDescription('What to search for').setRequired(true)
+        )
+    ),
 
     ...musicCommandList.map(command => command.data),
     ...require('./utility/quote').map(c => c.data)

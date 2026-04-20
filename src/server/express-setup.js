@@ -14,6 +14,12 @@ const {
     extractBearerToken,
     isRenderHealthCheck, isRenderHealthUserAgent
 } = require('./health-helpers');
+const {
+    publicStatsLimiter,
+    healthLimiter,
+    webhookLimiter,
+    siteLimiter
+} = require('./rate-limiters');
 
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const HEALTH_TOKEN = (process.env.HEALTH_TOKEN || '').trim() || null;
@@ -174,6 +180,9 @@ function createExpressApp({ webhookRouter, database }) {
     // ---- Body parsers & cookie ----
     app.use(cookieParser());
 
+    // ---- Baseline site-wide rate limit (before route-specific limiters) ----
+    app.use(siteLimiter);
+
     // Serve ephemeral temp files at short root paths
     app.get('/:id.:ext', (req, res, next) => {
         const { id, ext } = req.params;
@@ -194,7 +203,7 @@ function createExpressApp({ webhookRouter, database }) {
     });
 
     // Webhook forwarder requires raw body parsing, mount before json middleware
-    app.use('/webhook', webhookRouter);
+    app.use('/webhook', webhookLimiter, webhookRouter);
 
     const bodyLimit = process.env.JSON_BODY_LIMIT || '500kb';
     app.use(express.json({ limit: bodyLimit }));
@@ -203,6 +212,13 @@ function createExpressApp({ webhookRouter, database }) {
     // ---- Route mounts ----
     const pagesRouter = require('../../routes/pages');
     app.use('/', pagesRouter);
+
+    // Portal (OAuth + dashboard). Needs app context for guild/handler access.
+    const portalRouter = require('../../routes/portal');
+    if (typeof portalRouter.setAppContext === 'function') {
+        portalRouter.setAppContext(appContext);
+    }
+    app.use('/portal', portalRouter);
 
     // ---- Static files ----
     app.get('/favicon.ico', (req, res) => {
@@ -250,7 +266,7 @@ ${pages.map(p => `  <url>
     });
 
     // ---- Public stats API ----
-    app.get('/api/stats', async(req, res) => {
+    app.get('/api/stats', publicStatsLimiter, async(req, res) => {
         try {
             const guildCount = appContext.getClient()?.guilds?.cache?.size || 0;
             const userCount = appContext.getClient()?.guilds?.cache?.reduce((acc, g) => acc + g.memberCount, 0) || 0;
@@ -294,7 +310,7 @@ ${pages.map(p => `  <url>
     });
 
     // ---- Health check endpoint ----
-    app.get('/health', async(req, res) => {
+    app.get('/health', healthLimiter, async(req, res) => {
         if (!requireHealthToken(req, res, { allowRender: true })) {return;}
 
         if (isRenderHealthUserAgent(req) && !req.query.deep) {

@@ -280,7 +280,9 @@ class DatabaseManager {
             migrations: this.db.collection(config.database.collections.migrations),
             statusMessages: this.db.collection(config.database.collections.statusMessages),
             commandMetrics: this.db.collection(config.database.collections.commandMetrics),
-            reminders: this.db.collection(config.database.collections.reminders)
+            reminders: this.db.collection(config.database.collections.reminders),
+            memberWarnings: this.db.collection(config.database.collections.memberWarnings),
+            portalSessions: this.db.collection(config.database.collections.portalSessions)
         };
         const indexPlans = [
             {
@@ -376,6 +378,28 @@ class DatabaseManager {
                     { key: { id: 1 }, unique: true },
                     { key: { userId: 1, scheduledFor: 1 } },
                     { key: { scheduledFor: 1 } }
+                ]
+            },
+            {
+                label: 'memberWarnings',
+                collection: collections.memberWarnings,
+                definitions: [
+                    { key: { id: 1 }, unique: true },
+                    { key: { guildId: 1, userId: 1, createdAt: -1 } },
+                    { key: { guildId: 1, createdAt: -1 } }
+                ]
+            },
+            {
+                label: 'portalSessions',
+                collection: collections.portalSessions,
+                definitions: [
+                    { key: { sid: 1 }, unique: true },
+                    { key: { userId: 1, createdAt: -1 } },
+                    {
+                        key: { expiresAt: 1 },
+                        expireAfterSeconds: 0,
+                        name: 'portalSessions_ttl'
+                    }
                 ]
             }
         ];
@@ -709,6 +733,24 @@ class DatabaseManager {
             $setOnInsert: { createdAt: new Date() }
         });
     }
+    async setGuildModeratorUsers(guildId, userIds = []) {
+        const clean = Array.isArray(userIds)
+            ? userIds.map(id => String(id)).filter(id => /^\d{5,30}$/.test(id))
+            : [];
+        return this._patchGuildConfig(guildId, {
+            $set: { moderatorUserIds: clean, updatedAt: new Date() },
+            $setOnInsert: { createdAt: new Date() }
+        });
+    }
+    async setGuildModeratorRoles(guildId, roleIds = []) {
+        const clean = Array.isArray(roleIds)
+            ? roleIds.map(id => String(id)).filter(id => /^\d{5,30}$/.test(id))
+            : [];
+        return this._patchGuildConfig(guildId, {
+            $set: { moderatorRoleIds: clean, updatedAt: new Date() },
+            $setOnInsert: { createdAt: new Date() }
+        });
+    }
     async setGuildWakeWord(guildId, wakeWord) {
         return this._setOrUnsetField(guildId, 'customWakeWord', wakeWord);
     }
@@ -844,6 +886,64 @@ class DatabaseManager {
     async saveMemberLogConfig(guildId, data) {
         return this._upsertGuildDoc(config.database.collections.memberLogs, guildId, data);
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Member warnings (strike system)
+    // ─────────────────────────────────────────────────────────────────────
+    async addMemberWarning({ guildId, userId, moderatorId, reason }) {
+        if (!this.isConnected) {throw new Error('Database not connected');}
+        if (!guildId || !userId) {throw new Error('guildId and userId required');}
+        const now = new Date();
+        const id = require('crypto').randomBytes(4).toString('hex'); // 8-char id
+        const doc = {
+            id,
+            guildId: String(guildId),
+            userId: String(userId),
+            moderatorId: moderatorId ? String(moderatorId) : null,
+            reason: typeof reason === 'string' ? reason.slice(0, 1000) : '',
+            createdAt: now
+        };
+        await this.db.collection(config.database.collections.memberWarnings).insertOne(doc);
+        return doc;
+    }
+
+    async listMemberWarnings({ guildId, userId = null, limit = 25 }) {
+        if (!this.isConnected) {return [];}
+        const filter = { guildId: String(guildId) };
+        if (userId) {filter.userId = String(userId);}
+        return this.db
+            .collection(config.database.collections.memberWarnings)
+            .find(filter)
+            .sort({ createdAt: -1 })
+            .limit(Math.max(1, Math.min(Number(limit) || 25, 200)))
+            .toArray();
+    }
+
+    async countMemberWarnings({ guildId, userId, sinceMs = null }) {
+        if (!this.isConnected) {return 0;}
+        const filter = { guildId: String(guildId), userId: String(userId) };
+        if (Number.isFinite(sinceMs) && sinceMs > 0) {
+            filter.createdAt = { $gte: new Date(Date.now() - sinceMs) };
+        }
+        return this.db.collection(config.database.collections.memberWarnings).countDocuments(filter);
+    }
+
+    async removeMemberWarning({ guildId, warningId }) {
+        if (!this.isConnected) {throw new Error('Database not connected');}
+        const result = await this.db
+            .collection(config.database.collections.memberWarnings)
+            .deleteOne({ guildId: String(guildId), id: String(warningId) });
+        return result.deletedCount > 0;
+    }
+
+    async clearMemberWarnings({ guildId, userId }) {
+        if (!this.isConnected) {throw new Error('Database not connected');}
+        const result = await this.db
+            .collection(config.database.collections.memberWarnings)
+            .deleteMany({ guildId: String(guildId), userId: String(userId) });
+        return result.deletedCount;
+    }
+
     async recordCommandMetric({
         command,
         subcommand = null,

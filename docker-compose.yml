@@ -1,0 +1,56 @@
+# Local / self-hosted stack for Jarvis.
+#
+#   cp .env.example .env            # fill in secrets
+#   docker compose up -d            # bot + mongo
+#   docker compose logs -f jarvis   # follow logs
+#
+# For a quick test run without MongoDB (vault + main DB disabled):
+#   docker compose up jarvis -e LOCAL_DB_MODE=1
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: jarvis-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-jarvis}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-change-me}
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "127.0.0.1:27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  jarvis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jarvis-bot
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Point the bot at the compose mongo service by default; override in .env
+      MONGO_URI: ${MONGO_URI:-mongodb://${MONGO_ROOT_USER:-jarvis}:${MONGO_ROOT_PASSWORD:-change-me}@mongo:27017/jarvis?authSource=admin}
+      VAULT_MONGO_URI: ${VAULT_MONGO_URI:-mongodb://${MONGO_ROOT_USER:-jarvis}:${MONGO_ROOT_PASSWORD:-change-me}@mongo:27017/jarvis_vault?authSource=admin}
+      PORT: 3000
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    volumes:
+      - jarvis-data:/app/data
+      - jarvis-logs:/app/logs
+      - jarvis-tmp:/app/tmp
+
+volumes:
+  mongo-data:
+  jarvis-data:
+  jarvis-logs:
+  jarvis-tmp:

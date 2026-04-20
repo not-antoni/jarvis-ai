@@ -36,6 +36,8 @@ const SHARED_STYLES = `
         display: flex;
         gap: 1.75rem;
         list-style: none;
+        align-items: center;
+        margin-left: auto;
     }
     .nav-links a {
         color: #666;
@@ -45,6 +47,23 @@ const SHARED_STYLES = `
         transition: color 0.2s;
     }
     .nav-links a:hover { color: #fff; }
+    .nav-user {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.35rem 0.8rem 0.35rem 0.35rem;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 999px;
+        color: #ddd;
+        font-size: 0.85rem;
+        text-decoration: none;
+    }
+    .nav-user:hover { border-color: rgba(255,255,255,0.16); color: #fff; }
+    .nav-user img {
+        width: 26px; height: 26px; border-radius: 50%;
+        display: block;
+    }
     h1 {
         font-size: 2rem;
         margin-bottom: 0.5rem;
@@ -106,8 +125,37 @@ const SHARED_STYLES = `
 const NAV_HTML = `
     <nav>
         <a href="/" class="logo">Jarvis</a>
-        <ul class="nav-links"></ul>
+        <ul class="nav-links">
+            <li><a href="/portal" id="nav-portal-link">Portal</a></li>
+            <li id="nav-user-slot"><a href="/portal/login" class="nav-user">Sign in</a></li>
+        </ul>
     </nav>
+    <script>
+    // Best-effort nav widget: swap the "Sign in" slot for the user avatar when
+    // a portal session is active. Fails silently offline or unauthenticated.
+    (function hydrateNavUser() {
+        var slot = document.getElementById('nav-user-slot');
+        if (!slot) { return; }
+        fetch('/portal/api/me', { credentials: 'same-origin' })
+            .then(function (res) { return res.ok ? res.json() : null; })
+            .then(function (payload) {
+                if (!payload || !payload.user) { return; }
+                var u = payload.user;
+                var name = u.globalName || u.username || 'User';
+                var escape = function (s) {
+                    return String(s || '').replace(/[&<>"']/g, function (c) {
+                        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                    });
+                };
+                slot.innerHTML =
+                    '<a href="/portal" class="nav-user" title="Open portal">' +
+                        (u.avatarUrl ? '<img src="' + escape(u.avatarUrl) + '" alt="" loading="lazy">' : '') +
+                        '<span>' + escape(name) + '</span>' +
+                    '</a>';
+            })
+            .catch(function () { /* stay as Sign in */ });
+    })();
+    </script>
 `;
 
 module.exports = { SHARED_STYLES, NAV_HTML, DISCORD_INVITE };

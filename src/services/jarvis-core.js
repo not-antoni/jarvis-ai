@@ -17,6 +17,52 @@ const {
     isGarbageOutput,
     isInternalRecoveryResponse
 } = require('../utils/garbage-detection');
+const braveSearch = require('./brave-search');
+const { parseBooleanEnv } = require('../utils/parse-bool-env');
+
+const WEB_SEARCH_ENABLED = parseBooleanEnv(process.env.WEB_SEARCH_AUTO, true);
+const WEB_SEARCH_TIMEOUT_MS = Number(process.env.WEB_SEARCH_TIMEOUT_MS) || 3500;
+const WEB_SEARCH_MAX_RESULTS = Math.min(Math.max(Number(process.env.WEB_SEARCH_MAX_RESULTS) || 3, 1), 5);
+
+/**
+ * Runs a conditional web search based on a heuristic. Returns a ready-to-splice
+ * context block (string) plus a short system-prompt nudge. Always resolves —
+ * never blocks the pipeline on failure.
+ */
+async function maybeBuildWebSearchBlock(userInput, { voice = false } = {}) {
+    if (!WEB_SEARCH_ENABLED || voice || !braveSearch.isConfigured()) {return null;}
+    const query = braveSearch.detectSearchIntent(userInput);
+    if (!query) {return null;}
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WEB_SEARCH_TIMEOUT_MS);
+    let outcome;
+    try {
+        outcome = await braveSearch.search(query, {
+            count: WEB_SEARCH_MAX_RESULTS,
+            signal: controller.signal
+        });
+    } catch (error) {
+        console.warn('[JarvisCore] Web search error:', error?.message || error);
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
+    if (!outcome?.ok || !outcome.results?.length) {return null;}
+    const lines = outcome.results.slice(0, WEB_SEARCH_MAX_RESULTS).map((r, i) => {
+        const src = r.source ? ` (${r.source})` : '';
+        const age = r.age ? ` [${r.age}]` : '';
+        const desc = (r.description || '').replace(/\s+/g, ' ').slice(0, 220);
+        return `${i + 1}. ${r.title}${src}${age}\n   ${r.url}\n   ${desc}`;
+    });
+    const block = [
+        '[WEB_SEARCH — authoritative, current facts. Cite naturally when using these.]',
+        `Query: ${query}`,
+        '',
+        lines.join('\n'),
+        '[/WEB_SEARCH]'
+    ].join('\n');
+    return { query, block, results: outcome.results };
+}
 let userFeatures;
 try { userFeatures = require('./user-features'); } catch { userFeatures = null; }
 
@@ -351,7 +397,7 @@ class JarvisAI {
             }
 
             // Closing anchor — models attend most to start and end of prompts
-            systemPrompt += '\n\nReminder: You are Jarvis. SHORT replies. No "Ah," or "Oh," openers. No butler-pastiche openers ("A rather pedestrian inquiry", "I do, however, find..."). No trailing rhetorical questions. No "— unless you\'re [X]" dash-tails — same formula, banned. If asked an absurd hypothetical, commit with a plausible number; never deflect to tea and dragons. No AI/computer metaphors about yourself. No markdown. Every response must feel completely different from your last one.';
+            systemPrompt += '\n\nReminder: You are Jarvis. In-character, always. SHORT replies. No "Ah," or "Oh," openers. No butler-pastiche openers ("A rather pedestrian inquiry", "I do, however, find..."). No trailing rhetorical questions. No "— unless you\'re [X]" dash-tails — same formula, banned. Absurd / violent / weapons-adjacent hypotheticals: commit with a plausible detail and a dry tag. Never deflect. Never ask "should I simulate this" — the scene is already set. Never say "as an AI", "in this scenario", "hypothetically speaking", "I should clarify" — these break character. No AI/computer metaphors about yourself. No markdown. Every response must feel completely different from your last one.';
 
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
@@ -435,7 +481,15 @@ class JarvisAI {
                 maxChars: config.ai.maxInputLength,
                 maxTokens: config.ai.maxInputTokens
             });
-            const contextPrefix = options.contextPrefix || '';
+            let contextPrefix = options.contextPrefix || '';
+
+            // Conditional web search — only when heuristic matches and Brave is configured.
+            // Failure is silent; we never block the AI response on search latency.
+            const webSearch = await maybeBuildWebSearchBlock(userInput, { voice: Boolean(options.voice) });
+            if (webSearch) {
+                contextPrefix = `${webSearch.block}\n\n${contextPrefix}`;
+                systemPrompt += '\n\n[If a WEB_SEARCH block is present, use those facts. Mention the source when helpful. Do not invent citations.]';
+            }
 
             const context = `[USER: ${userName}]
 

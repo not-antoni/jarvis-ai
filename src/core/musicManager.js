@@ -206,6 +206,7 @@ class MusicManager {
             this.safeSubscribe(state.connection, state.player);
             state.player.play(resource);
             state.currentVideo = video;
+            state.currentStartedAt = Date.now();
             state.currentRelease = streamResult.cleanup;
             console.log(
                 `[music][play] guild=${guildId} source=${video.source || 'unknown'} id=${videoId} ttfbMs=${Date.now() - playStart}`
@@ -420,6 +421,35 @@ class MusicManager {
             loopMode: state.loopMode || 'off',
             pendingVideoId: state.pendingVideoId || null
         };
+    }
+    /**
+     * Snapshot for /nowplaying — includes timing info for progress bars.
+     * Returns null when nothing is playing.
+     */
+    getNowPlaying(guildId) {
+        const state = this.queues.get(guildId);
+        if (!state || !state.currentVideo) {return null;}
+        const startedAt = state.currentStartedAt || null;
+        const elapsedMs = startedAt ? Math.max(0, Date.now() - startedAt) : null;
+        return {
+            track: cloneTrack(state.currentVideo),
+            startedAt,
+            elapsedMs,
+            paused: state.player?.state?.status === AudioPlayerStatus.Paused,
+            loopMode: state.loopMode || 'off',
+            queueLength: state.queue.length
+        };
+    }
+    /**
+     * Clear the pending queue without touching the currently playing track.
+     * Returns the number of tracks removed.
+     */
+    clearQueue(guildId) {
+        const state = this.queues.get(guildId);
+        if (!state) {return 0;}
+        const removed = state.queue.length;
+        state.queue = [];
+        return removed;
     }
     showQueue(guildId) {
         const state = this.queues.get(guildId);
@@ -760,6 +790,7 @@ class MusicManager {
         }
         state.currentRelease = null;
         state.currentVideo = null;
+        state.currentStartedAt = null;
     }
     cancelPendingDownload(state) {
         if (state.pendingVideoId) {
