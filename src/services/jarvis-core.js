@@ -31,14 +31,17 @@ const WEB_SEARCH_MAX_RESULTS = Math.min(Math.max(Number(process.env.WEB_SEARCH_M
  */
 async function maybeBuildWebSearchBlock(userInput, { voice = false } = {}) {
     if (!WEB_SEARCH_ENABLED || voice || !braveSearch.isConfigured()) {return null;}
-    const query = braveSearch.detectSearchIntent(userInput);
-    if (!query) {return null;}
+
+    const plan = braveSearch.detectSearchPlan(userInput);
+    if (!plan) {return null;}
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), WEB_SEARCH_TIMEOUT_MS);
     let outcome;
+
     try {
-        outcome = await braveSearch.search(query, {
-            count: WEB_SEARCH_MAX_RESULTS,
+        outcome = await braveSearch.searchByIntent(userInput, {
+            count: plan.mode === 'image' ? Math.max(WEB_SEARCH_MAX_RESULTS, 5) : WEB_SEARCH_MAX_RESULTS,
             signal: controller.signal
         });
     } catch (error) {
@@ -47,21 +50,40 @@ async function maybeBuildWebSearchBlock(userInput, { voice = false } = {}) {
     } finally {
         clearTimeout(timer);
     }
+
     if (!outcome?.ok || !outcome.results?.length) {return null;}
+
+    const searchLabel = outcome.rewrittenQuery && outcome.rewrittenQuery !== outcome.query
+        ? `${outcome.query} → ${outcome.rewrittenQuery}`
+        : outcome.query;
+
     const lines = outcome.results.slice(0, WEB_SEARCH_MAX_RESULTS).map((r, i) => {
         const src = r.source ? ` (${r.source})` : '';
         const age = r.age ? ` [${r.age}]` : '';
-        const desc = (r.description || '').replace(/\s+/g, ' ').slice(0, 220);
-        return `${i + 1}. ${r.title}${src}${age}\n   ${r.url}\n   ${desc}`;
+        const desc = (r.description || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+        const media = outcome.mode === 'image'
+            ? `\n   media: ${r.mediaUrl || r.url || 'n/a'}${r.pageUrl && r.pageUrl !== (r.mediaUrl || r.url) ? `\n   page: ${r.pageUrl}` : ''}`
+            : `\n   ${r.url}`;
+        return `${i + 1}. ${r.title}${src}${age}${media}\n   ${desc}`;
     });
+
+    const modeLabel = outcome.mode === 'image'
+        ? (plan.gifIntent ? 'IMAGE_SEARCH (GIF / visual request)' : 'IMAGE_SEARCH')
+        : 'WEB_SEARCH';
+
     const block = [
-        '[WEB_SEARCH — authoritative, current facts. Cite naturally when using these.]',
-        `Query: ${query}`,
+        `[${modeLabel} — current external evidence only. Prefer these over memory when they conflict.]`,
+        `Query: ${searchLabel}`,
+        outcome.totalResults ? `Matches: ${outcome.totalResults}` : null,
+        outcome.mode === 'image'
+            ? 'Rule: never invent a GIF, image URL, or media link. Only use URLs listed below. If none are clearly usable, say you could not verify one.'
+            : 'Rule: do not invent facts, citations, or links. Use only the evidence below.',
         '',
         lines.join('\n'),
-        '[/WEB_SEARCH]'
-    ].join('\n');
-    return { query, block, results: outcome.results };
+        `[/${modeLabel}]`
+    ].filter(Boolean).join('\n');
+
+    return { query: outcome.rewrittenQuery || plan.query, block, results: outcome.results, mode: outcome.mode };
 }
 let userFeatures;
 try { userFeatures = require('./user-features'); } catch { userFeatures = null; }
@@ -488,7 +510,7 @@ class JarvisAI {
             const webSearch = await maybeBuildWebSearchBlock(userInput, { voice: Boolean(options.voice) });
             if (webSearch) {
                 contextPrefix = `${webSearch.block}\n\n${contextPrefix}`;
-                systemPrompt += '\n\n[If a WEB_SEARCH block is present, use those facts. Mention the source when helpful. Do not invent citations.]';
+                systemPrompt += '\n\n[If a WEB_SEARCH or IMAGE_SEARCH block is present, use only the evidence in that block. Do not invent URLs, citations, media links, or GIFs. If a requested GIF/image is not explicitly verified in the block, say you could not find one.]';
             }
 
             const context = `[USER: ${userName}]

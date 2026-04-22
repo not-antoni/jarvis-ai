@@ -1,13 +1,14 @@
 'use strict';
 
 /**
- * Thin Brave Search API client with in-process caching.
- *
- * Docs: https://api.search.brave.com/app/documentation/web-search/get-started
+ * Brave Search API client with in-process caching, query cleanup, retry logic,
+ * lightweight relevance ranking, and media-aware search modes.
  *
  * Env:
  *   BRAVE_SEARCH_API_KEY   required for live calls (otherwise client is inert)
- *   BRAVE_SEARCH_ENDPOINT  override base URL (default api.search.brave.com)
+ *   BRAVE_API_KEY          alias for BRAVE_SEARCH_API_KEY
+ *   BRAVE_SEARCH_ENDPOINT  override web search base URL (default api.search.brave.com)
+ *   BRAVE_SEARCH_IMAGE_ENDPOINT override image search base URL
  *   BRAVE_SEARCH_COUNTRY   two-letter country code (default "us")
  *   BRAVE_SEARCH_TTL_MS    cache TTL in ms (default 5 minutes)
  */
@@ -17,16 +18,38 @@ const logger = require('../utils/logger');
 
 const log = logger.child({ module: 'brave-search' });
 
-const DEFAULT_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search';
+const DEFAULT_WEB_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search';
+const DEFAULT_IMAGE_ENDPOINT = 'https://api.search.brave.com/res/v1/images/search';
 const DEFAULT_TTL_MS = 5 * 60_000;
+const DEFAULT_COUNT = 5;
+const MAX_WEB_COUNT = 10;
+const MAX_IMAGE_COUNT = 20;
+const REQUEST_TIMEOUT_MS = Number(process.env.BRAVE_SEARCH_TIMEOUT_MS) || 5000;
+const RETRY_DELAY_MS = Number(process.env.BRAVE_SEARCH_RETRY_DELAY_MS) || 250;
 
 const cache = new LRUCache({
     max: 500,
     ttl: Number(process.env.BRAVE_SEARCH_TTL_MS) || DEFAULT_TTL_MS
 });
 
+const STOP_WORDS = new Set([
+    'a','an','the','is','are','was','were','be','been','am','do','does','did',
+    'will','would','could','should','shall','can','may','might','must',
+    'i','me','my','you','your','he','she','it','we','they','them','his','her',
+    'its','our','their','this','that','these','those','what','which','who','how','when','where',
+    'why','not','no','and','or','but','if','so','to','of','in','on','at','for','with',
+    'from','by','as','up','out','about','into','over','under','after','before','between',
+    'has','have','had','just','very','really','like','know','think','want','tell','say',
+    'said','get','got','go','went','make','made','take','see','come','let','please',
+    'jarvis','garmin','sir','hey','hi','hello','yo','ok','okay','pls','search','web'
+]);
+
+const GIF_HINTS = /(gif|gifs|tenor|giphy|animated gif|reaction gif|looping gif)/i;
+const IMAGE_HINTS = /(image|images|photo|photos|picture|pictures|wallpaper|avatar|icon|icons|meme|memes|sticker|stickers)/i;
+const VIDEO_HINTS = /(video|videos|clip|clips|trailer|youtube|tiktok|reel|reels)/i;
+const CURRENT_HINTS = /(latest|current|recent|today|yesterday|right now|breaking|news|weather|forecast|score|scores|standings|results?)/i;
+
 function getApiKey() {
-    // Accept both BRAVE_SEARCH_API_KEY (docs) and BRAVE_API_KEY (shorter alias)
     const key = (process.env.BRAVE_SEARCH_API_KEY || process.env.BRAVE_API_KEY || '').trim();
     return key || null;
 }
@@ -39,95 +62,571 @@ function normalizeQuery(query) {
     return String(query || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-async function search(query, { count = 5, signal = null } = {}) {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-        return { ok: false, reason: 'Brave Search API key not configured', results: [] };
-    }
-    const cleanQuery = String(query || '').trim();
-    if (!cleanQuery) {
-        return { ok: false, reason: 'Empty query', results: [] };
-    }
-    const cacheKey = `${normalizeQuery(cleanQuery)}::${count}`;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-        return { ok: true, cached: true, results: cached.results, query: cleanQuery };
-    }
-    const endpoint = (process.env.BRAVE_SEARCH_ENDPOINT || DEFAULT_ENDPOINT).replace(/\/$/, '');
-    const url = new URL(endpoint);
-    url.searchParams.set('q', cleanQuery);
-    url.searchParams.set('count', String(Math.max(1, Math.min(count, 20))));
-    url.searchParams.set('country', process.env.BRAVE_SEARCH_COUNTRY || 'us');
-    url.searchParams.set('safesearch', 'moderate');
-
-    try {
-        const res = await fetch(url, {
-            headers: {
-                Accept: 'application/json',
-                'X-Subscription-Token': apiKey,
-                'User-Agent': 'JarvisAI/1.0 (+https://github.com/jarvis-ai)'
-            },
-            signal
-        });
-        if (!res.ok) {
-            const body = await res.text().catch(() => '');
-            log.warn('Brave search API error', {
-                status: res.status,
-                body: body.slice(0, 200)
-            });
-            return { ok: false, reason: `Brave API returned ${res.status}`, results: [] };
-        }
-        const data = await res.json();
-        const webResults = Array.isArray(data?.web?.results) ? data.web.results : [];
-        const results = webResults.slice(0, count).map(item => ({
-            title: item.title || '',
-            url: item.url || '',
-            description: item.description || '',
-            age: item.age || null,
-            source: item.meta_url?.netloc || item.profile?.name || null
-        }));
-        const payload = { results, fetchedAt: Date.now() };
-        cache.set(cacheKey, payload);
-        return { ok: true, cached: false, results, query: cleanQuery };
-    } catch (error) {
-        log.error('Brave search failed', { err: error, query: cleanQuery });
-        return { ok: false, reason: error?.message || 'request failed', results: [] };
-    }
+function normalizeWhitespace(text) {
+    return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
-/**
- * Heuristic: should a user's prompt trigger a web search?
- * Conservative — only triggers on clearly time-sensitive or factual lookup
- * phrasing. Returns a trimmed query suited for search, or null.
- */
-function detectSearchIntent(prompt) {
-    if (typeof prompt !== 'string') {return null;}
-    const text = prompt.trim();
-    if (text.length < 6 || text.length > 400) {return null;}
-
-    const lower = text.toLowerCase();
-
-    const triggers = [
-        /\b(latest|current|recent|today|yesterday|this week|this month|right now|news)\b/,
-        /\b(who won|who is winning|who is the|what is the latest|how much is|what's the price|stock price)\b/,
-        /\b(release date|released on|when did|when will|upcoming|schedule|lineup)\b/,
-        /\b(score|result|final score|standings|leaderboard)\b/,
-        /\b20(2[5-9]|3\d)\b/, // any near-future year
-        /\b(weather in|forecast for)\b/
-    ];
-    const matches = triggers.some(rx => rx.test(lower));
-    if (!matches) {return null;}
-
-    // Strip bot nicknames / polite filler to improve search quality
-    return text
-        .replace(/^(hey|hi|hello|yo|ok|okay|please|could you|can you|jarvis|j)[\s,:]+/i, '')
+function stripNoiseFromPrompt(text) {
+    return String(text || '')
+        .trim()
+        .replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, '')
+        .replace(/^(hey|hi|hello|yo|ok|okay|please|pls|can you|could you|would you|will you|jarvis|garmin|sir)[\s,:-]+/i, '')
+        .replace(/(can you|could you|would you|please|pls|kindly)/gi, ' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
 }
 
+function tokenize(text) {
+    return String(text || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+}
+
+function buildKeywordSet(text) {
+    return new Set(tokenize(text).filter(token => token.length > 2 && !STOP_WORDS.has(token)));
+}
+
+function countWords(text) {
+    return tokenize(text).length;
+}
+
+function hostFromUrl(url) {
+    try {
+        return new URL(url).hostname.replace(/^www\./i, '').toLowerCase();
+    } catch {
+        return '';
+    }
+}
+
+function sanitizeUrl(url) {
+    try {
+        const parsed = new URL(url);
+        parsed.hash = '';
+        for (const key of [...parsed.searchParams.keys()]) {
+            if (/^(utm_|fbclid$|gclid$|yclid$|ref$|ref_src$|spm$)/i.test(key)) {
+                parsed.searchParams.delete(key);
+            }
+        }
+        return parsed.toString();
+    } catch {
+        return String(url || '').trim();
+    }
+}
+
+function sourceFromResult(item) {
+    return item?.meta_url?.netloc || item?.profile?.name || item?.source || item?.publisher || null;
+}
+
+function extractUrlCandidate(value) {
+    if (!value) {return null;}
+    if (typeof value === 'string') {return sanitizeUrl(value);}
+    if (typeof value === 'object') {
+        return sanitizeUrl(
+            value.url || value.src || value.link || value.href || value.original || value.original_url || value.originalUrl || ''
+        );
+    }
+    return null;
+}
+
+function extractImageUrl(item) {
+    const candidates = [
+        item?.image?.url,
+        item?.imageUrl,
+        item?.image_url,
+        item?.thumbnail?.url,
+        item?.thumbnailUrl,
+        item?.thumbnail_url,
+        item?.properties?.url,
+        item?.properties?.image,
+        item?.properties?.original,
+        item?.properties?.original_url,
+        item?.properties?.originalUrl,
+        item?.original?.url,
+        item?.originalUrl,
+        item?.original_url,
+        item?.url,
+        item?.source?.url,
+        item?.media?.url
+    ];
+
+    for (const candidate of candidates) {
+        const url = extractUrlCandidate(candidate);
+        if (url) {return url;}
+    }
+
+    return null;
+}
+
+function extractThumbnailUrl(item) {
+    const candidates = [
+        item?.thumbnail?.url,
+        item?.thumbnailUrl,
+        item?.thumbnail_url,
+        item?.thumbnail,
+        item?.properties?.placeholder,
+        item?.properties?.thumbnail,
+        item?.properties?.thumbnailUrl,
+        item?.image?.thumbnail,
+        item?.image?.thumbnailUrl
+    ];
+
+    for (const candidate of candidates) {
+        const url = extractUrlCandidate(candidate);
+        if (url) {return url;}
+    }
+
+    return null;
+}
+
+function isGifUrl(url) {
+    return /\.gif(\?|$)/i.test(url || '') || /media\.tenor\.com/i.test(url || '') || /giphy\.com/i.test(url || '');
+}
+
+function rewriteSearchQuery(prompt, { mode = 'web', forceGif = false } = {}) {
+    const cleaned = stripNoiseFromPrompt(prompt);
+    if (!cleaned) {return null;}
+
+    let query = cleaned
+        .replace(/^((what|who|when|where|why|how)('?s| is| are| was| were)?\s+)/i, '')
+        .replace(/^(find|search for|look up|lookup|google|brave search|web search|search the web)\s+/i, '')
+        .replace(/\?$|\s+\?$/g, '')
+        .replace(/(please|thanks|thank you)/gi, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+    if (!query) {
+        query = cleaned;
+    }
+
+    if (mode === 'image' && forceGif && !GIF_HINTS.test(query)) {
+        query = `${query} gif`;
+    }
+
+    // Keep the highest-value terms if the prompt is still very wordy.
+    const terms = tokenize(query).filter(token => token.length > 2 && !STOP_WORDS.has(token));
+    if (terms.length >= 3) {
+        const compressed = terms.join(' ');
+        if (compressed.length < query.length * 0.9) {
+            query = compressed;
+        }
+    }
+
+    // Brave API query limit is 50 words; keep well below that for noisy prompts.
+    const trimmedWords = tokenize(query).slice(0, 18).join(' ');
+    return normalizeWhitespace(trimmedWords).slice(0, 180) || null;
+}
+
+function detectSearchPlan(prompt) {
+    if (typeof prompt !== 'string') {return null;}
+    const text = prompt.trim();
+    if (text.length < 4 || text.length > 500) {return null;}
+
+    const lower = text.toLowerCase();
+    const gifIntent = GIF_HINTS.test(lower);
+    const imageIntent = gifIntent || IMAGE_HINTS.test(lower);
+    const videoIntent = VIDEO_HINTS.test(lower);
+    const currentIntent = CURRENT_HINTS.test(lower);
+    const questionLike = /^(who|what|when|where|why|how)/i.test(text) && text.includes('?');
+    const phraseLooksLookup = /(is|are|was|were|means|definition of|meaning of|price of|value of|status of)/i.test(lower);
+    const explicitSearch = /(search for|look up|lookup|find info on|find out about|google|brave search|web search)/i.test(lower);
+
+    if (!explicitSearch && !questionLike && !phraseLooksLookup && !currentIntent && !imageIntent && !videoIntent) {
+        return null;
+    }
+
+    const mode = imageIntent ? 'image' : (videoIntent ? 'video' : 'web');
+    const query = rewriteSearchQuery(text, { mode, forceGif: gifIntent });
+    if (!query) {return null;}
+
+    return {
+        mode,
+        query,
+        originalQuery: text,
+        gifIntent,
+        imageIntent,
+        videoIntent,
+        currentIntent
+    };
+}
+
+function detectSearchIntent(prompt) {
+    return detectSearchPlan(prompt)?.query || null;
+}
+
+function relevanceScore(result, queryTerms, exactQuery, { gifIntent = false } = {}) {
+    const haystack = `${result.title || ''} ${result.description || ''} ${result.source || ''} ${result.url || ''}`.toLowerCase();
+    let score = 0;
+
+    if (exactQuery && (result.title || '').toLowerCase().includes(exactQuery.toLowerCase())) {
+        score += 4;
+    }
+
+    for (const term of queryTerms) {
+        if (haystack.includes(term)) {score += 1.5;}
+        if ((result.title || '').toLowerCase().includes(term)) {score += 1;}
+    }
+
+    if (result.age) {score -= 0.25;}
+    if (result.source) {score += 0.2;}
+    if (/^(reddit|x|twitter|facebook|tiktok)$/i.test(result.source || '')) {score -= 0.5;}
+
+    if (gifIntent) {
+        const url = `${result.url || ''} ${result.mediaUrl || ''} ${result.thumbnail || ''}`.toLowerCase();
+        if (isGifUrl(url)) {score += 5;}
+        if (/tenor\.com|giphy\.com/i.test(url)) {score += 2.5;}
+        if (/reaction|loop|animated|animation|gif/i.test(haystack)) {score += 1;}
+    }
+
+    return score;
+}
+
+function dedupeAndRankWeb(results, query) {
+    const queryTerms = [...buildKeywordSet(query)];
+    const exactQuery = normalizeQuery(query);
+    const seen = new Set();
+    const normalized = [];
+
+    for (const item of results) {
+        const url = sanitizeUrl(item?.url || '');
+        if (!url || seen.has(url)) {continue;}
+        seen.add(url);
+
+        const normalizedItem = {
+            kind: 'web',
+            title: normalizeWhitespace(item?.title || ''),
+            url,
+            description: normalizeWhitespace(item?.description || ''),
+            age: item?.age || null,
+            source: sourceFromResult(item) || hostFromUrl(url),
+            score: 0
+        };
+        normalizedItem.score = relevanceScore(normalizedItem, queryTerms, exactQuery);
+        normalized.push(normalizedItem);
+    }
+
+    normalized.sort((a, b) => {
+        if (b.score !== a.score) {return b.score - a.score;}
+        if ((b.title || '').length !== (a.title || '').length) {
+            return (a.title || '').length - (b.title || '').length;
+        }
+        return (a.title || '').localeCompare(b.title || '');
+    });
+
+    return normalized;
+}
+
+function dedupeAndRankImages(results, query, { gifIntent = false } = {}) {
+    const queryTerms = [...buildKeywordSet(query)];
+    const exactQuery = normalizeQuery(query);
+    const seen = new Set();
+    const normalized = [];
+
+    for (const item of results) {
+        const mediaUrl = sanitizeUrl(extractImageUrl(item) || item?.url || '');
+        const pageUrl = sanitizeUrl(item?.pageUrl || item?.sourceUrl || item?.source?.url || item?.url || '');
+        const uniqueKey = mediaUrl || pageUrl;
+        if (!uniqueKey || seen.has(uniqueKey)) {continue;}
+        seen.add(uniqueKey);
+
+        const thumbnail = extractThumbnailUrl(item);
+        const normalizedItem = {
+            kind: 'image',
+            title: normalizeWhitespace(item?.title || item?.name || item?.alt || ''),
+            url: mediaUrl || pageUrl,
+            mediaUrl,
+            pageUrl,
+            thumbnail,
+            description: normalizeWhitespace(item?.description || item?.snippet || item?.source || ''),
+            source: sourceFromResult(item) || hostFromUrl(pageUrl || mediaUrl),
+            width: item?.properties?.width || item?.width || null,
+            height: item?.properties?.height || item?.height || null,
+            score: 0
+        };
+        normalizedItem.score = relevanceScore(normalizedItem, queryTerms, exactQuery, { gifIntent });
+        normalized.push(normalizedItem);
+    }
+
+    normalized.sort((a, b) => {
+        if (b.score !== a.score) {return b.score - a.score;}
+        if (b.mediaUrl && !a.mediaUrl) {return 1;}
+        if (a.mediaUrl && !b.mediaUrl) {return -1;}
+        if ((b.title || '').length !== (a.title || '').length) {
+            return (a.title || '').length - (b.title || '').length;
+        }
+        return (a.title || '').localeCompare(b.title || '');
+    });
+
+    return normalized;
+}
+
+async function fetchWithRetry(url, { signal = null, headers = {}, retries = 2 } = {}) {
+    let lastError = null;
+
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+        const timeoutController = new AbortController();
+        const timeout = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
+        const onAbort = () => timeoutController.abort();
+
+        try {
+            if (signal) {
+                if (signal.aborted) {
+                    throw new Error('request aborted');
+                }
+                signal.addEventListener('abort', onAbort, { once: true });
+            }
+
+            const res = await fetch(url, {
+                headers,
+                signal: timeoutController.signal
+            });
+
+            clearTimeout(timeout);
+            if (signal) {
+                signal.removeEventListener('abort', onAbort);
+            }
+
+            if (res.ok) {
+                return res;
+            }
+
+            const body = await res.text().catch(() => '');
+            const retryable = [408, 429, 500, 502, 503, 504].includes(res.status);
+            lastError = new Error(`Brave API returned ${res.status}`);
+            lastError.status = res.status;
+            lastError.body = body.slice(0, 200);
+            if (!retryable || attempt >= retries) {
+                return res;
+            }
+        } catch (error) {
+            clearTimeout(timeout);
+            if (signal) {
+                signal.removeEventListener('abort', onAbort);
+            }
+            lastError = error;
+            if (attempt >= retries) {
+                throw error;
+            }
+        }
+
+        const retryAfter = Number(headers['Retry-After']) || 0;
+        const delay = retryAfter > 0 ? retryAfter * 1000 : RETRY_DELAY_MS * (attempt + 1);
+        await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    throw lastError || new Error('request failed');
+}
+
+async function searchWeb(query, { count = DEFAULT_COUNT, signal = null } = {}) {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        return { ok: false, reason: 'Brave Search API key not configured', results: [] };
+    }
+
+    const cleanQuery = String(query || '').trim();
+    if (!cleanQuery) {
+        return { ok: false, reason: 'Empty query', results: [] };
+    }
+
+    const safeCount = Math.max(1, Math.min(Number(count) || DEFAULT_COUNT, MAX_WEB_COUNT));
+    const cacheKey = `web::${normalizeQuery(cleanQuery)}::${safeCount}::${process.env.BRAVE_SEARCH_COUNTRY || 'us'}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        return { ok: true, cached: true, ...cached };
+    }
+
+    const endpoint = (process.env.BRAVE_SEARCH_ENDPOINT || DEFAULT_WEB_ENDPOINT).replace(/\/$/, '');
+    const rewrittenQuery = rewriteSearchQuery(cleanQuery, { mode: 'web' }) || cleanQuery;
+    const url = new URL(endpoint);
+    url.searchParams.set('q', rewrittenQuery);
+    url.searchParams.set('count', String(safeCount));
+    url.searchParams.set('country', process.env.BRAVE_SEARCH_COUNTRY || 'us');
+    url.searchParams.set('safesearch', 'moderate');
+    url.searchParams.set('spellcheck', 'true');
+
+    try {
+        const res = await fetchWithRetry(url, {
+            headers: {
+                Accept: 'application/json',
+                'Cache-Control': 'no-cache',
+                'X-Subscription-Token': apiKey,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
+            },
+            signal,
+            retries: 2
+        });
+
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            log.warn('Brave web search API error', {
+                status: res.status,
+                body: body.slice(0, 200),
+                query: rewrittenQuery
+            });
+            return { ok: false, reason: `Brave API returned ${res.status}`, results: [] };
+        }
+
+        const data = await res.json();
+        const webResults = Array.isArray(data?.web?.results) ? data.web.results : Array.isArray(data?.results) ? data.results : [];
+        const ranked = dedupeAndRankWeb(webResults, rewrittenQuery).slice(0, safeCount);
+        const results = ranked.map(item => ({
+            kind: 'web',
+            title: item.title,
+            url: item.url,
+            description: item.description,
+            age: item.age,
+            source: item.source
+        }));
+
+        const totalResults = Number(data?.web?.total) || Number(data?.total) || webResults.length;
+        const payload = {
+            ok: true,
+            cached: false,
+            mode: 'web',
+            results,
+            query: cleanQuery,
+            rewrittenQuery,
+            totalResults
+        };
+        cache.set(cacheKey, payload);
+        return payload;
+    } catch (error) {
+        log.error('Brave web search failed', { err: error, query: rewrittenQuery });
+        return { ok: false, reason: error?.message || 'request failed', results: [] };
+    }
+}
+
+async function searchImages(query, { count = 12, signal = null, gifIntent = false } = {}) {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        return { ok: false, reason: 'Brave Search API key not configured', results: [] };
+    }
+
+    const cleanQuery = String(query || '').trim();
+    if (!cleanQuery) {
+        return { ok: false, reason: 'Empty query', results: [] };
+    }
+
+    const safeCount = Math.max(1, Math.min(Number(count) || 12, MAX_IMAGE_COUNT));
+    const cacheKey = `image::${gifIntent ? 'gif:' : ''}${normalizeQuery(cleanQuery)}::${safeCount}::${process.env.BRAVE_SEARCH_COUNTRY || 'us'}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        return { ok: true, cached: true, ...cached };
+    }
+
+    const endpoint = (process.env.BRAVE_SEARCH_IMAGE_ENDPOINT || DEFAULT_IMAGE_ENDPOINT).replace(/\/$/, '');
+    const rewrittenQuery = rewriteSearchQuery(cleanQuery, { mode: 'image', forceGif: gifIntent }) || cleanQuery;
+    const url = new URL(endpoint);
+    url.searchParams.set('q', rewrittenQuery);
+    url.searchParams.set('count', String(safeCount));
+    url.searchParams.set('country', process.env.BRAVE_SEARCH_COUNTRY || 'us');
+    url.searchParams.set('safesearch', 'strict');
+    url.searchParams.set('spellcheck', 'true');
+
+    try {
+        const res = await fetchWithRetry(url, {
+            headers: {
+                Accept: 'application/json',
+                'Cache-Control': 'no-cache',
+                'X-Subscription-Token': apiKey,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
+            },
+            signal,
+            retries: 2
+        });
+
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            log.warn('Brave image search API error', {
+                status: res.status,
+                body: body.slice(0, 200),
+                query: rewrittenQuery
+            });
+            return { ok: false, reason: `Brave API returned ${res.status}`, results: [] };
+        }
+
+        const data = await res.json();
+        const rawResults = Array.isArray(data?.results)
+            ? data.results
+            : Array.isArray(data?.images?.results)
+                ? data.images.results
+                : Array.isArray(data?.image?.results)
+                    ? data.image.results
+                    : [];
+
+        const ranked = dedupeAndRankImages(rawResults, rewrittenQuery, { gifIntent }).slice(0, safeCount);
+        const results = ranked.map(item => ({
+            kind: 'image',
+            title: item.title,
+            url: item.url,
+            mediaUrl: item.mediaUrl,
+            pageUrl: item.pageUrl,
+            thumbnail: item.thumbnail,
+            description: item.description,
+            source: item.source,
+            width: item.width,
+            height: item.height
+        }));
+
+        const totalResults = Number(data?.extra?.total) || Number(data?.total) || rawResults.length;
+        const payload = {
+            ok: true,
+            cached: false,
+            mode: 'image',
+            results,
+            query: cleanQuery,
+            rewrittenQuery,
+            totalResults,
+            gifIntent
+        };
+        cache.set(cacheKey, payload);
+        return payload;
+    } catch (error) {
+        log.error('Brave image search failed', { err: error, query: rewrittenQuery });
+        return { ok: false, reason: error?.message || 'request failed', results: [] };
+    }
+}
+
+async function search(query, { count = DEFAULT_COUNT, signal = null, mode = 'auto' } = {}) {
+    const cleanQuery = String(query || '').trim();
+    if (!cleanQuery) {
+        return { ok: false, reason: 'Empty query', results: [] };
+    }
+
+    const plan = mode === 'auto' ? detectSearchPlan(cleanQuery) : {
+        mode,
+        query: rewriteSearchQuery(cleanQuery, { mode: mode === 'image' ? 'image' : 'web', forceGif: mode === 'image' && GIF_HINTS.test(cleanQuery) }) || cleanQuery,
+        gifIntent: GIF_HINTS.test(cleanQuery)
+    };
+
+    const chosenMode = plan?.mode || 'web';
+    if (chosenMode === 'image') {
+        return searchImages(plan.query || cleanQuery, { count, signal, gifIntent: Boolean(plan.gifIntent) });
+    }
+
+    return searchWeb(plan.query || cleanQuery, { count, signal });
+}
+
+async function searchByIntent(prompt, options = {}) {
+    const plan = detectSearchPlan(prompt);
+    if (!plan) {
+        return { ok: false, reason: 'No searchable intent detected', results: [] };
+    }
+    return search(plan.query, { ...options, mode: plan.mode });
+}
+
 module.exports = {
     search,
+    searchByIntent,
+    searchWeb,
+    searchImages,
     isConfigured,
     detectSearchIntent,
-    _cache: cache
+    detectSearchPlan,
+    rewriteSearchQuery,
+    _cache: cache,
+    _extractImageUrl: extractImageUrl,
+    _extractThumbnailUrl: extractThumbnailUrl,
+    _isGifUrl: isGifUrl
 };
