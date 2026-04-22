@@ -9,7 +9,7 @@ const _promptMtimes = {};
 
 const FAMILY_TIER = {
     mistral: 'flexible',
-    google: 'google',
+    google: 'flexible',
     deepseek: 'flexible',
     cerebras: 'moderate',
     openai: 'moderate',

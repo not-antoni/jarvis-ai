@@ -261,21 +261,23 @@ router.get('/api/me', apiLimiter, requireSession, async(req, res) => {
     if (!client) {
         return res.json({ user, manageableGuilds: [], botReady: false });
     }
-    // For every guild the bot is in, check whether this user is a moderator.
     const handler = _appContext.getHandlers?.();
-    const results = [];
-    for (const guild of client.guilds.cache.values()) {
+    const checks = [...client.guilds.cache.values()].map(async guild => {
         try {
-            const member = await guild.members.fetch(session.userId).catch(() => null);
-            if (!member) {continue;}
+            // Check cache first — avoids a REST call if member is already cached
+            const member = guild.members.cache.get(session.userId)
+                ?? await guild.members.fetch(session.userId).catch(() => null);
+            if (!member) { return null; }
             if (handler?.isGuildModerator && (await handler.isGuildModerator(member))) {
-                results.push(buildGuildSummary(guild, member));
+                return buildGuildSummary(guild, member);
             }
         } catch (error) {
             log.warn('me-api guild check failed', { guildId: guild.id, err: error });
         }
-    }
-    res.json({ user, manageableGuilds: results, botReady: true });
+        return null;
+    });
+    const results = await Promise.all(checks);
+    res.json({ user, manageableGuilds: results.filter(Boolean), botReady: true });
 });
 
 router.get('/api/guilds/:guildId/config', apiLimiter, requireSession, async(req, res) => {

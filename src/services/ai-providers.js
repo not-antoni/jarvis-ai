@@ -11,22 +11,20 @@ const aiFetch = getAIFetch();
 const fsp = fs.promises;
 const PROVIDER_STATE_PATH = path.join(__dirname, '..', '..', 'data', 'provider-state.json');
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
-const GOOGLE_STABLE_MODELS = [
-    'gemini-2.5-flash'
+const GOOGLE_STABLE_MODELS =[
+    'gemini-3-flash-preview'
 ];
-const GOOGLE_PREVIEW_MODELS = [
-    'gemini-3.1-pro-preview',
-    'gemini-3.1-flash-lite-preview',
-    'gemini-3-pro-preview'
+const GOOGLE_PREVIEW_MODELS =[
+    'gemini-3-flash-preview',
 ];
 const POISON_QUARANTINE_THRESHOLD = 2;
 const POISON_QUARANTINE_WINDOW_MS = 10 * 60 * 1000;
 const POISON_QUARANTINE_DURATION_MS = 30 * 60 * 1000;
 const DEFAULT_PROVIDER_LATENCY_MS = 1500;
-const AUTO_SCORE_LATENCY_CEILING_MS = 15 * 1000;
+const AUTO_SCORE_LATENCY_CEILING_MS = 30 * 1000;
 const AUTO_HEALTH_MIN_TRIALS = 6;
 const AUTO_HEALTH_DEGRADED_TRIALS = 10;
-const AUTO_HEALTH_DEGRADED_LATENCY_MS = 12 * 1000;
+const AUTO_HEALTH_DEGRADED_LATENCY_MS = 25 * 1000;
 const AUTO_FAMILY_PRIORITY = {
     mistral: 0,
     google: 1,
@@ -126,7 +124,7 @@ function resolveAutoHealthBucket(metric) {
 }
 class AIProviderManager {
     constructor() {
-        this.providers = [];
+        this.providers =[];
         this.providerErrors = new Map();
         this.metrics = new Map();
         this.disabledProviders = new Map();
@@ -176,7 +174,7 @@ class AIProviderManager {
                         apiKey: key,
                         baseURL: 'https://openrouter.ai/api/v1',
                         fetch: aiFetch,
-                        timeout: 25_000,
+                        timeout: 35_000,
                         defaultHeaders: {
                             'HTTP-Referer': process.env.APP_URL || process.env.PUBLIC_BASE_URL || 'https://localhost',
                             'X-Title': process.env.APP_NAME || 'Jarvis AI'
@@ -194,7 +192,7 @@ class AIProviderManager {
         // Auto-discover all GROQ_API_KEY, GROQ_API_KEY2, etc.
         const groqKeys = discoverEnvKeys('GROQ_API_KEY');
         // Each Groq key gets multiple model providers — rate limits are per-model
-        const groqModels = [
+        const groqModels =[
             'llama-3.3-70b-versatile'
         ];
         groqKeys.forEach((key, keyIndex) => {
@@ -206,7 +204,7 @@ class AIProviderManager {
                         apiKey: key,
                         baseURL: 'https://api.groq.com/openai/v1',
                         fetch: aiFetch,
-                        timeout: 25_000
+                        timeout: 35_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -219,7 +217,7 @@ class AIProviderManager {
         // ---------- Cerebras providers (OpenAI-compatible) ----------
         // Auto-discover all CEREBRAS_API_KEY, CEREBRAS_API_KEY2, etc.
         const cerebrasKeys = discoverEnvKeys('CEREBRAS_API_KEY');
-        const cerebrasModels = [
+        const cerebrasModels =[
             'qwen-3-235b-a22b-instruct-2507',
         ];
         cerebrasKeys.forEach((key, keyIndex) => {
@@ -231,7 +229,7 @@ class AIProviderManager {
                         apiKey: key,
                         baseURL: 'https://api.cerebras.ai/v1',
                         fetch: aiFetch,
-                        timeout: 25_000
+                        timeout: 35_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -255,7 +253,7 @@ class AIProviderManager {
                         apiKey: key,
                         baseURL: 'https://api.mistral.ai/v1',
                         fetch: aiFetch,
-                        timeout: 25_000
+                        timeout: 35_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -280,7 +278,7 @@ class AIProviderManager {
                         apiKey: key,
                         baseURL: 'https://api.sambanova.ai/v1',
                         fetch: aiFetch,
-                        timeout: 25_000
+                        timeout: 35_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -295,7 +293,7 @@ class AIProviderManager {
         const googleKeys = discoverEnvKeys('GOOGLE_AI_API_KEY');
         // Each Google key gets multiple models — rate limits are per-model
         const googleModels = parseBooleanEnv(process.env.GOOGLE_AI_ENABLE_PREVIEW_MODELS, false)
-            ? [...GOOGLE_STABLE_MODELS, ...GOOGLE_PREVIEW_MODELS]
+            ?[...GOOGLE_STABLE_MODELS, ...GOOGLE_PREVIEW_MODELS]
             : GOOGLE_STABLE_MODELS;
         googleKeys.forEach((key, keyIndex) => {
             googleModels.forEach((model) => {
@@ -335,7 +333,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: 'https://ai-gateway.vercel.sh/v1',
                     fetch: aiFetch,
-                    timeout: 25_000,
+                    timeout: 35_000,
                     defaultHeaders: {
                         'HTTP-Referer': process.env.APP_URL || process.env.PUBLIC_BASE_URL || 'https://localhost',
                         'X-Title': process.env.APP_NAME || 'Jarvis AI'
@@ -352,7 +350,7 @@ class AIProviderManager {
         // ---------- NVIDIA NIM (OpenAI-compatible) ----------
         // Auto-discover all NVIDIA_API_KEY, NVIDIA_API_KEY2, etc.
         const nvidiaKeys = discoverEnvKeys('NVIDIA_API_KEY');
-        const nvidiaModels = [
+        const nvidiaModels =[
             'google/gemma-4-31b-it',
             'deepseek-ai/deepseek-v3.2'
         ];
@@ -367,7 +365,7 @@ class AIProviderManager {
                         apiKey: key,
                         baseURL: 'https://integrate.api.nvidia.com/v1',
                         fetch: aiFetch,
-                        timeout: 25_000
+                        timeout: 35_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -403,7 +401,7 @@ class AIProviderManager {
             this.providers.push({
                 // Keep the same name so your existing filters & health pages remain happy
                 name: 'GPT5Nano',
-                client: new OpenAI({ apiKey: key, fetch: aiFetch, timeout: 25_000 }), // https://api.openai.com/v1
+                client: new OpenAI({ apiKey: key, fetch: aiFetch, timeout: 35_000 }), // https://api.openai.com/v1
                 model: 'gpt-4o-mini', // ← actual model
                 type: 'openai-chat', // generic OpenAI-compatible flow
                 family: 'openai',
@@ -520,7 +518,7 @@ class AIProviderManager {
             }
         }
         if (data.providerErrors && typeof data.providerErrors === 'object') {
-            for (const [name, errorInfo] of Object.entries(data.providerErrors)) {
+            for (const[name, errorInfo] of Object.entries(data.providerErrors)) {
                 if (
                     errorInfo &&
                     typeof errorInfo === 'object' &&
@@ -540,7 +538,7 @@ class AIProviderManager {
             this.scheduleStateSave();
         }
         // Restore numeric metrics
-        for (const key of ['totalTokensIn', 'totalTokensOut', 'totalRequests', 'successfulRequests', 'failedRequests']) {
+        for (const key of['totalTokensIn', 'totalTokensOut', 'totalRequests', 'successfulRequests', 'failedRequests']) {
             if (typeof data[key] === 'number') { this[key] = data[key]; }
         }
     }
@@ -787,7 +785,7 @@ class AIProviderManager {
         for (const p of available) {
             const m = getProviderMetricSnapshot(this.metrics.get(p.name));
             const bucket = resolveAutoHealthBucket(m);
-            if (!buckets.has(bucket)) {buckets.set(bucket, []);}
+            if (!buckets.has(bucket)) {buckets.set(bucket,[]);}
             buckets.get(bucket).push(p);
         }
         // Fisher-Yates shuffle within each bucket
@@ -799,7 +797,7 @@ class AIProviderManager {
         }
         // Concatenate buckets in health order: 0 (healthy), 1 (untested), 2 (degraded), 3 (dead)
         const result = [];
-        for (const bucket of [0, 1, 2, 3]) {
+        for (const bucket of[0, 1, 2, 3]) {
             if (buckets.has(bucket)) {result.push(...buckets.get(bucket));}
         }
         return result;
@@ -826,7 +824,7 @@ class AIProviderManager {
         const status = error?.status || error?.response?.status;
         const message = String(error?.message || '').toLowerCase();
         if (error?.transient) {return true;}
-        if (status && [408, 409, 429, 500, 502, 503, 504].includes(status)) {return true;}
+        if (status &&[408, 409, 429, 500, 502, 503, 504].includes(status)) {return true;}
         if (
             message.includes('empty') ||
             message.includes('timeout') ||
@@ -988,7 +986,7 @@ class AIProviderManager {
         }));
     }
     setProviderType(providerType) {
-        const validTypes = ['auto', 'openai', 'groq', 'cerebras', 'sambanova', 'mistral', 'openrouter', 'google', 'deepseek', 'nvidia', 'ollama'];
+        const validTypes =['auto', 'openai', 'groq', 'cerebras', 'sambanova', 'mistral', 'openrouter', 'google', 'deepseek', 'nvidia', 'ollama'];
         if (!validTypes.includes(String(providerType).toLowerCase())) {
             throw new Error(`Invalid provider type. Valid options: ${validTypes.join(', ')}`);
         }
@@ -1033,7 +1031,7 @@ class AIProviderManager {
      */
     forceReinitialize() {
         console.log('Force reinitializing AI providers...');
-        this.providers = [];
+        this.providers =[];
         this.providerErrors.clear();
         this.metrics.clear();
         this.disabledProviders.clear();

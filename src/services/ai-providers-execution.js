@@ -21,7 +21,7 @@ const {
 } = require('./ai/cooldown');
 const { resolveSystemPrompt } = require('./ai/system-prompt');
 
-const GEMINI_SAFETY_OFF = [
+const GEMINI_SAFETY_OFF =[
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -37,13 +37,19 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         console.warn('Provider list was empty - reinitializing providers...');
         manager.setupProviders();
         if (manager.providers.length === 0) {
-            throw new Error('No AI providers available - check API key configuration');
+            throw new Error('No AI providers available - check API configuration');
         }
         console.log(`Reinitialized ${manager.providers.length} AI providers`);
     }
     const attemptedProviders = new Set();
     const requestStartedAt = Date.now();
-    const requestBudgetMs = getRequestBudgetMs(manager);
+    
+    // Force a higher failover budget (at least 60 seconds) to support slow responses from large models
+    let requestBudgetMs = getRequestBudgetMs(manager);
+    if (requestBudgetMs < 60000) {
+        requestBudgetMs = 60000;
+    }
+    
     let lastError = null;
     while (true) {
         const elapsedMs = Date.now() - requestStartedAt;
@@ -67,7 +73,8 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         const callOnce = async() => {
             const effectiveSystemPrompt = resolveSystemPrompt(systemPrompt, provider);
             if (provider.type === 'google') {
-                const isGemmaLegacy = /^gemma-[1-3]/i.test(provider.model);
+                // Fixed to apply to ALL gemma models, so it doesn't try using SystemInstructions for gemma-4 which causes failures
+                const isGemmaLegacy = /^gemma-/i.test(provider.model);
                 const model = provider.client.getGenerativeModel(
                     isGemmaLegacy
                         ? { model: provider.model, safetySettings: GEMINI_SAFETY_OFF }
@@ -106,7 +113,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                     });
                 }
                 const allParts =
-                    response?.candidates?.flatMap(candidate => candidate?.content?.parts || []) || [];
+                    response?.candidates?.flatMap(candidate => candidate?.content?.parts || []) ||[];
                 let text = allParts
                     .filter(part => !part?.thought)
                     .map(part => {
@@ -141,12 +148,12 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                         { status: 502 }
                     );
                 }
-                return { choices: [{ message: { content: cleaned } }] };
+                return { choices:[{ message: { content: cleaned } }] };
             }
             // ---------- Ollama native API handler ----------
             if (provider.type === 'ollama') {
                 const ollamaEndpoint = `${provider.baseURL}/chat`;
-                const messages = [
+                const messages =[
                     { role: 'system', content: effectiveSystemPrompt },
                     { role: 'user', content: userPrompt }
                 ];
@@ -213,7 +220,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                         'Authorization': `Bearer ${provider.apiKey}`
                     },
                     body: JSON.stringify({
-                        messages: [
+                        messages:[
                             { role: 'system', content: effectiveSystemPrompt },
                             { role: 'user', content: userPrompt }
                         ],
@@ -254,7 +261,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             // ---------- Cloudflare Workers AI handler ----------
             if (provider.type === 'cloudflare-worker') {
                 const cfEndpoint = `${provider.workerUrl}/api/chat`;
-                const messages = [
+                const messages =[
                     { role: 'system', content: effectiveSystemPrompt },
                     { role: 'user', content: userPrompt }
                 ];
@@ -302,7 +309,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             try {
                 resp = await provider.client.chat.completions.create({
                     model: provider.model,
-                    messages: [
+                    messages:[
                         { role: 'system', content: effectiveSystemPrompt },
                         { role: 'user', content: userPrompt }
                     ],
@@ -341,10 +348,18 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         };
         try {
             const retryAttempts = Math.max(0, Number(config.ai?.retryAttempts || 0));
+            
+            // Force a minimum timeout of 30s to allow heavy models to respond
+            let providerTimeoutMs = getProviderAttemptTimeoutMs(provider);
+            if (providerTimeoutMs < 30000) {
+                providerTimeoutMs = 30000;
+            }
+            
             const PROVIDER_ATTEMPT_TIMEOUT = Math.max(
                 250,
-                Math.min(getProviderAttemptTimeoutMs(provider), remainingBudgetMs)
+                Math.min(providerTimeoutMs, remainingBudgetMs)
             );
+            
             const retryPromise = manager._retry(callOnce, {
                 retries: retryAttempts,
                 baseDelay: retryAttempts > 0 ? 500 : 0,
@@ -437,7 +452,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             } else if (!error.transient && error?.providerFault !== false) {
                 const currentFailures = (manager.providerFailureCounts.get(provider.name) || 0) + 1;
                 manager.providerFailureCounts.set(provider.name, currentFailures);
-                const backoffDurations = [
+                const backoffDurations =[
                     2 * 60 * 1000,
                     10 * 60 * 1000,
                     30 * 60 * 1000,
@@ -505,7 +520,7 @@ async function generateResponseWithImages(
     manager,
     systemPrompt,
     userPrompt,
-    images = [],
+    images =[],
     maxTokens = config.ai?.maxTokens || 4096,
     options = {}
 ) {
@@ -519,7 +534,7 @@ async function generateResponseWithImages(
         console.warn('Provider list was empty - reinitializing providers...');
         manager.setupProviders();
         if (manager.providers.length === 0) {
-            throw new Error('No AI providers available - check API key configuration');
+            throw new Error('No AI providers available - check API configuration');
         }
     }
     const imageCapableProviders = manager.providers.filter(
@@ -531,7 +546,7 @@ async function generateResponseWithImages(
         );
         return manager.generateResponse(systemPrompt, userPrompt, maxTokens);
     }
-    const base64Images = [];
+    const base64Images =[];
     for (const image of images) {
         try {
             const imageUrl = image.url || image;
@@ -539,7 +554,7 @@ async function generateResponseWithImages(
                 console.warn(`Rejected non-HTTP image URL: ${imageUrl}`);
                 continue;
             }
-            const supportedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+            const supportedTypes =['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
             const contentType = image.contentType || '';
             const response = await aiFetch(imageUrl);
             if (!response.ok) {
@@ -609,13 +624,13 @@ async function generateResponseWithImages(
         const disabledUntil = manager.disabledProviders.get(provider.name);
         if (disabledUntil && disabledUntil > Date.now()) {continue;}
         console.log(
-            `Attempting image request with ${provider.name} (${provider.model}) [${base64Images.length} image(s)]`
+            `Attempting image request with ${provider.name} (${provider.model})[${base64Images.length} image(s)]`
         );
         try {
             if (provider.type === 'ollama') {
                 const ollamaEndpoint = `${provider.baseURL}/chat`;
                 const visionSystemPrompt = resolveSystemPrompt(systemPrompt, provider);
-                const messages = [
+                const messages =[
                     { role: 'system', content: visionSystemPrompt },
                     { role: 'user', content: userPrompt, images: base64Images }
                 ];
