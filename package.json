@@ -60,7 +60,7 @@
     "googleapis": "^160.0.0",
     "helmet": "^8.0.0",
     "lru-cache": "^10.2.2",
-    "mongodb": "^6.19.0",
+    "mongodb": "^7.1.1",
     "node-cron": "^4.2.1",
     "openai": "^5.20.1",
     "opusscript": "^0.1.1",
