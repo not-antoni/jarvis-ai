@@ -1,8 +1,25 @@
 'use strict';
 
+// Invisible / format / bidi / tag unicode commonly used for prompt-poisoning,
+// stego payloads, or copy-paste exfiltration. Stripped from every AI output and
+// from anything we feed into memory or system prompts (#273).
+// Combining-character ranges like FE00-FE0F (variation selectors) are
+// intentional — we WANT to scrub them; lint heuristic doesn't apply here.
+// eslint-disable-next-line no-misleading-character-class
+const INVISIBLE_UNICODE_RE = /[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0\uFFF9-\uFFFB]/g;
+// Astral-plane invisibles: tag chars (E0000-E007F) + variation selectors supplement (E0100-E01EF)
+// eslint-disable-next-line no-misleading-character-class
+const INVISIBLE_UNICODE_ASTRAL_RE = /[\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/gu;
+
+function stripInvisibleUnicode(text) {
+    if (!text || typeof text !== 'string') {return text;}
+    return text.replace(INVISIBLE_UNICODE_RE, '').replace(INVISIBLE_UNICODE_ASTRAL_RE, '');
+}
+
 function sanitizeModelOutput(text) {
     if (!text || typeof text !== 'string') {return text;}
     let out = text.replace(/\r\n?/g, '\n');
+    out = stripInvisibleUnicode(out);
     out = out.replace(
         /<\/message>\s*<\/start>\s*assistant\s*<\/channel>\s*final\s*<\/message>/gi,
         ' '
@@ -50,17 +67,20 @@ function stripWrappingQuotes(text) {
     if (!text || typeof text !== 'string') {return text;}
     const trimmed = text.trim();
     if (!trimmed) {return trimmed;}
+    // Only strip double-quote style wrappers. Single-quote stripping is unsafe
+    // because contractions ("don't", "I'm", "you're") and possessives confuse
+    // pair-counting and were truncating valid replies (#269).
     const pairs = [
         ['"', '"'],
         ['\u201C', '\u201D'],
         ['\u201E', '\u201D'],
-        ['\u00AB', '\u00BB'],
-        ["'", "'"]
+        ['\u00AB', '\u00BB']
     ];
     for (const [start, end] of pairs) {
         if (!trimmed.startsWith(start) || !trimmed.endsWith(end)) {continue;}
-        if (trimmed.length < start.length + end.length) {continue;}
+        if (trimmed.length < start.length + end.length + 2) {continue;}
         const inner = trimmed.slice(start.length, trimmed.length - end.length);
+        // Refuse to strip if the content has internal quotes — likely a real quotation.
         if (start === end) {
             const occurrences = trimmed.split(start).length - 1;
             if (occurrences !== 2) {continue;}
@@ -256,6 +276,7 @@ function extractOpenAICompatibleText(choice) {
 
 module.exports = {
     sanitizeModelOutput,
+    stripInvisibleUnicode,
     cleanThinkingOutput,
     stripWrappingQuotes,
     stripJarvisSpeakerPrefix,

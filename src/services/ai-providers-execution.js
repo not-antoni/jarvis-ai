@@ -28,6 +28,18 @@ const GEMINI_SAFETY_OFF =[
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
 ];
 
+// Vertex AI accepts the same BLOCK_NONE values plus a civic-integrity
+// category that the public Gemini SDK doesn't expose. We send strings
+// directly so we don't depend on the Gemini SDK enum on the Vertex path
+// (#264 — keeps Vertex Express as permissive as Gemini Generative).
+const VERTEX_SAFETY_OFF = [
+    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
+];
+
 // ============ EXECUTION ENGINE ============
 /**
  * Core generation execution - tries each provider in order with retry logic.
@@ -42,6 +54,11 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         console.log(`Reinitialized ${manager.providers.length} AI providers`);
     }
     const attemptedProviders = new Set();
+    // Families whose entire pool has refused this prompt for content-policy
+    // reasons. Same prompt → same family → same refusal, so once Gemini1
+    // returns "blocked", we skip Gemini2..N and move to other vendors. Stops
+    // a single refusal from burning the failover budget across 10+ keys.
+    const blockedFamilies = new Set();
     const requestStartedAt = Date.now();
     
     // Force a higher failover budget (at least 60 seconds) to support slow responses from large models
@@ -65,13 +82,99 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             break;
         }
         const rankedProviders = manager._rankedProviders();
-        const orderedCandidates = rankedProviders.filter(provider => !attemptedProviders.has(provider.name));
+        const orderedCandidates = rankedProviders.filter(candidate =>
+            !attemptedProviders.has(candidate.name) &&
+            !blockedFamilies.has(String(candidate.family || '').toLowerCase())
+        );
         const provider = orderedCandidates[0];
         if (!provider) {break;}
         attemptedProviders.add(provider.name);
         const started = Date.now();
         const callOnce = async() => {
             const effectiveSystemPrompt = resolveSystemPrompt(systemPrompt, provider);
+            if (provider.type === 'vertex-express') {
+                // Vertex AI in "Express Mode" — the API key flow used by the
+                // Google AI for Startups credits (#264). Uses the public
+                // aiplatform endpoint, no project/SA needed.
+                const location = provider.location || 'global';
+                const host = location === 'global'
+                    ? 'aiplatform.googleapis.com'
+                    : `${location}-aiplatform.googleapis.com`;
+                const url = `https://${host}/v1/publishers/google/models/${encodeURIComponent(provider.model)}:generateContent`;
+                const body = {
+                    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+                    systemInstruction: { role: 'system', parts: [{ text: effectiveSystemPrompt }] },
+                    safetySettings: VERTEX_SAFETY_OFF,
+                    generationConfig: {
+                        temperature: config.ai?.temperature ?? 0.7,
+                        maxOutputTokens: maxTokens
+                    }
+                };
+                let response;
+                try {
+                    response = await aiFetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            // Express-mode keys go in the standard
+                            // x-goog-api-key header (Bearer also works for
+                            // OAuth ADC tokens; we send both to be tolerant).
+                            'x-goog-api-key': provider.apiKey,
+                            'Authorization': `Bearer ${provider.apiKey}`
+                        },
+                        body: JSON.stringify(body)
+                    });
+                } catch (fetchError) {
+                    throw normalizeGoogleError(fetchError, provider.name);
+                }
+                if (!response.ok) {
+                    const errorText = await response.text().catch(() => 'Unknown error');
+                    throw normalizeGoogleError(
+                        Object.assign(new Error(errorText), { status: response.status }),
+                        provider.name
+                    );
+                }
+                const data = await response.json().catch(() => ({}));
+                const blockReason = data?.promptFeedback?.blockReason;
+                if (blockReason) {
+                    throw Object.assign(new Error(`Vertex blocked: ${blockReason}`), {
+                        status: 400, providerFault: false, promptBlocked: true
+                    });
+                }
+                const finishReason = data?.candidates?.[0]?.finishReason;
+                if (finishReason === 'SAFETY' || finishReason === 'PROHIBITED_CONTENT') {
+                    throw Object.assign(new Error(`Vertex safety filter triggered (${finishReason})`), {
+                        status: 400, providerFault: false, promptBlocked: true
+                    });
+                }
+                const parts = data?.candidates?.flatMap(c => c?.content?.parts || []) || [];
+                const text = parts
+                    .filter(part => !part?.thought)
+                    .map(part => (typeof part?.text === 'string' ? part.text : null))
+                    .filter(Boolean)
+                    .join('\n')
+                    .trim();
+                if (!text) {
+                    throw Object.assign(
+                        new Error(`Empty response from ${provider.name}${finishReason ? ` (finishReason=${finishReason})` : ''}`),
+                        { status: 502, transient: true }
+                    );
+                }
+                const cleaned = sanitizeAssistantMessage(text);
+                if (!cleaned) {
+                    throw Object.assign(
+                        new Error(`Sanitized empty content from ${provider.name}`),
+                        { status: 502 }
+                    );
+                }
+                return {
+                    choices: [{ message: { content: cleaned } }],
+                    usage: {
+                        prompt_tokens: data?.usageMetadata?.promptTokenCount || 0,
+                        completion_tokens: data?.usageMetadata?.candidatesTokenCount || 0
+                    }
+                };
+            }
             if (provider.type === 'google') {
                 // Fixed to apply to ALL gemma models, so it doesn't try using SystemInstructions for gemma-4 which causes failures
                 const isGemmaLegacy = /^gemma-/i.test(provider.model);
@@ -419,13 +522,13 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             });
             manager.scheduleStateSave();
             const errStatus = error?.status || error?.response?.status;
+            // Content-policy blocks (prompt-side, providerFault:false) aren't
+            // provider failures — they're Google's fixed input filter or
+            // similar. Log at warn level with a clearer prefix so operators
+            // don't mistake them for outages.
+            const isPromptBlocked = error?.providerFault === false &&
+                (error?.promptBlocked || /blocked|safety|prohibited_content/i.test(String(error?.message || '')));
             if (errStatus !== 429) {
-                // Content-policy blocks (prompt-side, providerFault:false) aren't
-                // provider failures — they're Google's fixed input filter or
-                // similar. Log at warn level with a clearer prefix so operators
-                // don't mistake them for outages.
-                const isPromptBlocked = error?.providerFault === false &&
-                    (error?.promptBlocked || /blocked|safety|prohibited_content/i.test(String(error?.message || '')));
                 if (isPromptBlocked) {
                     console.warn(
                         `[ContentBlocked] ${provider.name} (${provider.model}) refused prompt after ${latency}ms: ${error.message}`
@@ -433,6 +536,18 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 } else {
                     console.error(
                         `Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${errStatus ? `(Status: ${errStatus})` : ''}`
+                    );
+                }
+            }
+            // Skip the rest of this family for THIS request (#262 robustness):
+            // a content-policy refusal is deterministic for the same prompt, so
+            // we won't waste rotations on every other Gemini key.
+            if (isPromptBlocked) {
+                const family = String(provider.family || '').toLowerCase();
+                if (family) {
+                    blockedFamilies.add(family);
+                    console.warn(
+                        `[ContentBlocked] Skipping remaining "${family}" providers for this request after refusal from ${provider.name}`
                     );
                 }
             }

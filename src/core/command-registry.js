@@ -336,6 +336,14 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'unban',
+        description: 'Unban a user by mention or user ID.',
+        category: 'Moderation',
+        usage: '/unban user:<member> | user_id:<id> [reason]',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
         name: 'kick',
         description: 'Kick a member from the server.',
         category: 'Moderation',
@@ -351,15 +359,7 @@ const commandDefinitions = [
         feature: 'moderation',
         ephemeral: true
     },
-    // ============ SEARCH ============
-    {
-        name: 'search',
-        description: 'Search the web via Brave Search.',
-        category: 'Utilities',
-        usage: '/search query:<text>',
-        feature: 'webSearch',
-        ephemeral: false
-    },
+    // /search removed (#268) — the AI uses Brave Search internally.
     // ============ MUSIC EXTRAS ============
     {
         name: 'nowplaying',

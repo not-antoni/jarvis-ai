@@ -1,6 +1,7 @@
 'use strict';
 
 const { truncateTextToTokenLimit } = require('./token-estimator');
+const { stripInvisibleUnicode } = require('../services/ai/sanitize');
 
 const DEFAULT_MAX_USER_INPUT_CHARS = 2000;
 const DEFAULT_MAX_USER_INPUT_TOKENS = 1024;
@@ -17,7 +18,7 @@ const DEFAULT_MAX_USER_INPUT_TOKENS = 1024;
 function sanitizeMemoryContent(text) {
     if (!text || typeof text !== 'string') {return '';}
 
-    let result = text
+    let result = stripInvisibleUnicode(text)
         // Remove null bytes
         .replace(/\x00/g, '')
         // Escape quotes
@@ -109,8 +110,8 @@ function sanitizeUserInput(text, options = {}) {
             DEFAULT_MAX_USER_INPUT_TOKENS
     );
 
-    // Remove null bytes
-    let cleaned = text.replace(/\x00/g, '');
+    // Remove invisible / format / tag unicode (anti prompt-poisoning) and null bytes
+    let cleaned = stripInvisibleUnicode(text).replace(/\x00/g, '');
 
     // Strip known prompt injection markers that could confuse models
     cleaned = cleaned

@@ -56,11 +56,11 @@ const _sysInfo = (() => {
 })();
 
 async function handlePing(interaction) {
-    const sent = await interaction.editReply({ content: 'Pinging system...', fetchReply: true });
-    const roundtripLatency = sent.createdTimestamp - interaction.createdTimestamp;
+    // No editReply roundtrip — send the embed directly to save bot quota.
+    // RT latency is approximated from interaction creation to send time.
     const apiLatency = Math.round(interaction.client.ws.ping);
+    const roundtripLatency = Math.max(0, Date.now() - interaction.createdTimestamp);
     const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
-
     const uptime = formatUptime(getProcessUptimeSeconds());
 
     const embed = new EmbedBuilder()

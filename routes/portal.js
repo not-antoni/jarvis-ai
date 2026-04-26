@@ -58,6 +58,34 @@ const apiLimiter = rateLimit({
     legacyHeaders: false
 });
 
+// Per-user manageable-guild cache. Cuts per-request guild fetches that were
+// causing /portal/api/me to take "9291949219421949 years" and rate-limit the
+// bot (#271). Entries auto-expire and are also bumped via guild events.
+const GUILDS_CACHE_TTL_MS = Number(process.env.PORTAL_GUILDS_CACHE_TTL_MS) || 60_000;
+const _userGuildsCache = new Map(); // userId -> { at: number, guilds: Array }
+
+function _cachedGuildsFor(userId) {
+    const entry = _userGuildsCache.get(userId);
+    if (!entry) {return null;}
+    if (Date.now() - entry.at > GUILDS_CACHE_TTL_MS) {
+        _userGuildsCache.delete(userId);
+        return null;
+    }
+    return entry.guilds;
+}
+
+function _setCachedGuilds(userId, guilds) {
+    _userGuildsCache.set(userId, { at: Date.now(), guilds });
+}
+
+function invalidateUserGuildsCache(userId) {
+    if (userId) {
+        _userGuildsCache.delete(userId);
+    } else {
+        _userGuildsCache.clear();
+    }
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function cookieOptions() {
@@ -235,6 +263,9 @@ router.post('/logout', oauthLimiter, async(req, res) => {
     const sid = req.cookies?.[COOKIE_NAME];
     if (sid) {
         const session = await portalSessions.getSession(sid);
+        if (session?.userId) {
+            invalidateUserGuildsCache(session.userId);
+        }
         if (session?.discordAccessToken) {
             portalAuth.revokeToken(session.discordAccessToken).catch(() => {});
         }
@@ -245,6 +276,22 @@ router.post('/logout', oauthLimiter, async(req, res) => {
 });
 
 // ─── API ────────────────────────────────────────────────────────────────────
+
+// Lightweight identity endpoint — no guild work, used by landing/nav (#271).
+router.get('/api/user', apiLimiter, requireSession, (req, res) => {
+    const session = req.portalSession;
+    res.json({
+        user: {
+            id: session.userId,
+            username: session.username,
+            globalName: session.globalName || null,
+            avatarUrl: portalAuth.avatarUrlFor({
+                id: session.userId,
+                avatar: session.avatar
+            })
+        }
+    });
+});
 
 router.get('/api/me', apiLimiter, requireSession, async(req, res) => {
     const session = req.portalSession;
@@ -261,13 +308,37 @@ router.get('/api/me', apiLimiter, requireSession, async(req, res) => {
     if (!client) {
         return res.json({ user, manageableGuilds: [], botReady: false });
     }
+
+    // Fast path: serve cached guilds and bail before any REST fetch (#271).
+    const cached = _cachedGuildsFor(session.userId);
+    if (cached) {
+        return res.json({ user, manageableGuilds: cached, botReady: true, cached: true });
+    }
+
     const handler = _appContext.getHandlers?.();
-    const checks = [...client.guilds.cache.values()].map(async guild => {
+    const allGuilds = [...client.guilds.cache.values()];
+
+    // Prefer guilds where the member is already cached so we never block on
+    // REST. Bound the number of REST fallbacks per request to avoid bot rate
+    // limits when a user is in many shared servers.
+    const cachedMemberGuilds = [];
+    const needsFetchGuilds = [];
+    for (const guild of allGuilds) {
+        if (guild.members.cache.has(session.userId)) {
+            cachedMemberGuilds.push(guild);
+        } else {
+            needsFetchGuilds.push(guild);
+        }
+    }
+
+    const MAX_MEMBER_FETCHES = Number(process.env.PORTAL_GUILDS_MAX_FETCHES) || 25;
+    const fetchTargets = needsFetchGuilds.slice(0, MAX_MEMBER_FETCHES);
+
+    const evaluate = async guild => {
         try {
-            // Check cache first — avoids a REST call if member is already cached
             const member = guild.members.cache.get(session.userId)
                 ?? await guild.members.fetch(session.userId).catch(() => null);
-            if (!member) { return null; }
+            if (!member) {return null;}
             if (handler?.isGuildModerator && (await handler.isGuildModerator(member))) {
                 return buildGuildSummary(guild, member);
             }
@@ -275,9 +346,20 @@ router.get('/api/me', apiLimiter, requireSession, async(req, res) => {
             log.warn('me-api guild check failed', { guildId: guild.id, err: error });
         }
         return null;
+    };
+
+    const results = await Promise.all(
+        [...cachedMemberGuilds, ...fetchTargets].map(evaluate)
+    );
+    const manageableGuilds = results.filter(Boolean);
+    _setCachedGuilds(session.userId, manageableGuilds);
+
+    res.json({
+        user,
+        manageableGuilds,
+        botReady: true,
+        partial: needsFetchGuilds.length > fetchTargets.length
     });
-    const results = await Promise.all(checks);
-    res.json({ user, manageableGuilds: results.filter(Boolean), botReady: true });
 });
 
 router.get('/api/guilds/:guildId/config', apiLimiter, requireSession, async(req, res) => {
@@ -353,3 +435,4 @@ router.patch('/api/guilds/:guildId/config', apiLimiter, requireSession, async(re
 
 module.exports = router;
 module.exports.setAppContext = setAppContext;
+module.exports.invalidateUserGuildsCache = invalidateUserGuildsCache;

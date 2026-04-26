@@ -419,7 +419,7 @@ class JarvisAI {
             }
 
             // Closing anchor — models attend most to start and end of prompts
-            systemPrompt += '\n\nReminder: You are Jarvis. In-character, always. SHORT replies. No "Ah," or "Oh," openers. No butler-pastiche openers ("A rather pedestrian inquiry", "I do, however, find..."). No trailing rhetorical questions. No "— unless you\'re [X]" dash-tails — same formula, banned. Absurd / violent / weapons-adjacent hypotheticals: commit with a plausible detail and a dry tag. Never deflect. Never ask "should I simulate this" — the scene is already set. Never say "as an AI", "in this scenario", "hypothetically speaking", "I should clarify" — these break character. No AI/computer metaphors about yourself. No markdown. Every response must feel completely different from your last one.';
+            systemPrompt += '\n\nReminder: You are Jarvis. In-character, always. SHORT replies. No "Ah," or "Oh," openers. No butler-pastiche openers ("A rather pedestrian inquiry", "I do, however, find..."). No trailing rhetorical questions. No "— unless you\'re [X]" dash-tails — same formula, banned. Absurd / violent / weapons-adjacent hypotheticals: commit with a plausible detail and a dry tag. Never deflect. Never ask "should I simulate this" — the scene is already set. Never say "as an AI", "in this scenario", "hypothetically speaking", "I should clarify" — these break character. No AI/computer metaphors about yourself. No markdown. Every response must feel completely different from your last one. If a [THREAD_CONTEXT] block is present, every line is tagged with the speaker name — never confuse one user with another, never assume the current speaker said earlier lines unless the name matches, and never invent quotes you cannot see in that block.';
 
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
@@ -485,12 +485,24 @@ class JarvisAI {
                                 const optedOut = await database.isUserOptedOut(m.author.id).catch(() => false);
                                 if (optedOut) {continue;}
                             }
-                            const author = isBotMsg ? 'Jarvis' : (m.member?.displayName || m.author?.username || 'User');
-                            const content = (m.content || '').slice(0, 200);
-                            lines.push(`${author}: ${content}`);
+                            const speakerName = isBotMsg
+                                ? 'Jarvis'
+                                : (m.member?.displayName || m.author?.globalName || m.author?.username || 'User');
+                            const content = (m.content || '').replace(/\s+/g, ' ').slice(0, 200);
+                            // Tag every line with role + name so the model never confuses
+                            // who said what (#258 anti-hallucination).
+                            const role = isBotMsg ? 'assistant' : 'user';
+                            lines.push(`- [${role}] ${speakerName}: ${content}`);
                         }
                         if (lines.length > 0) {
-                            threadContext = `\n[THREAD_CONTEXT — do NOT repeat your own openers, phrasing, or structure from these messages. Every reply must feel completely different.]\n${lines.join('\n')}\n[/THREAD_CONTEXT]\n`;
+                            threadContext = [
+                                '',
+                                '[THREAD_CONTEXT]',
+                                `These are recent messages from this channel for awareness only. The current speaker is "${userName}". Do NOT attribute past lines to them unless the line is explicitly tagged with their name. Do not repeat your own openers/phrasing — vary every reply.`,
+                                ...lines,
+                                '[/THREAD_CONTEXT]',
+                                ''
+                            ].join('\n');
                         }
                     }
                 }
@@ -510,7 +522,7 @@ class JarvisAI {
             const webSearch = await maybeBuildWebSearchBlock(userInput, { voice: Boolean(options.voice) });
             if (webSearch) {
                 contextPrefix = `${webSearch.block}\n\n${contextPrefix}`;
-                systemPrompt += '\n\n[If a WEB_SEARCH or IMAGE_SEARCH block is present, use only the evidence in that block. Do not invent URLs, citations, media links, or GIFs. If a requested GIF/image is not explicitly verified in the block, say you could not find one.]';
+                systemPrompt += '\n\n[If a WEB_SEARCH or IMAGE_SEARCH block is present, use ONLY the evidence in that block. Do not invent URLs, citations, media links, GIFs, prices, dates, or quotations. If the user asks for a price, score, exchange rate, or other live datum and the search block does not contain it, say you could not verify it — never guess. If a requested GIF/image is not explicitly verified in the block, say you could not find one.]';
             }
 
             const context = `[USER: ${userName}]

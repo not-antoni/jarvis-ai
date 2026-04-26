@@ -610,6 +610,20 @@ const allCommands = [
                 .setRequired(false)
         ),
     new SlashCommandBuilder()
+        .setName('unban')
+        .setDescription('Unban a user by mention or user ID (moderator only)')
+        .setContexts([InteractionContextType.Guild])
+        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+        .addUserOption(opt =>
+            opt.setName('user').setDescription('User to unban (if still resolvable)').setRequired(false)
+        )
+        .addStringOption(opt =>
+            opt.setName('user_id').setDescription('User ID to unban (use this if the user cannot be picked)').setRequired(false)
+        )
+        .addStringOption(opt =>
+            opt.setName('reason').setDescription('Reason for audit log').setRequired(false)
+        ),
+    new SlashCommandBuilder()
         .setName('kick')
         .setDescription('Kick a member from the server (moderator only)')
         .setContexts([InteractionContextType.Guild])
@@ -657,14 +671,7 @@ const allCommands = [
                 )
         ),
 
-    // ============ SEARCH ============
-    withCtx(new SlashCommandBuilder()
-        .setName('search')
-        .setDescription('Search the web via Brave Search')
-        .addStringOption(opt =>
-            opt.setName('query').setDescription('What to search for').setRequired(true)
-        )
-    ),
+    // /search removed (#268) — the AI uses Brave Search internally.
 
     ...musicCommandList.map(command => command.data),
     ...require('./utility/quote').map(c => c.data)

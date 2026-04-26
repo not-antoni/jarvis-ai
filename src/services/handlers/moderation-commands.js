@@ -385,6 +385,65 @@ async function handleKick(interaction, handler) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// /unban
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleUnban(interaction, handler) {
+    const gate = await ensureModerator(interaction, handler);
+    if (!gate.ok) {
+        await interaction.editReply({ content: gate.reason });
+        return;
+    }
+    const me = interaction.guild.members.me;
+    if (!me?.permissions?.has('BanMembers')) {
+        await interaction.editReply({
+            content: 'I lack the Ban Members permission, sir. Cannot unban.'
+        });
+        return;
+    }
+    const targetUser = interaction.options.getUser('user', false);
+    const userIdRaw = (interaction.options.getString('user_id', false) || '').trim();
+    const userId = targetUser?.id || userIdRaw;
+    const reason = interaction.options.getString('reason', false);
+    if (!userId || !/^\d{5,30}$/.test(userId)) {
+        await interaction.editReply({
+            content: 'Provide a valid user or numeric user ID, sir.'
+        });
+        return;
+    }
+    try {
+        const ban = await interaction.guild.bans.fetch(userId).catch(() => null);
+        if (!ban) {
+            await interaction.editReply({
+                content: 'That user is not currently banned, sir.'
+            });
+            return;
+        }
+        await interaction.guild.bans.remove(userId, formatAuditReason(gate.member, reason));
+        log.info('Unban applied', {
+            guildId: interaction.guildId,
+            actorId: gate.member.id,
+            targetId: userId
+        });
+        const tag = ban.user?.tag || ban.user?.username || userId;
+        const embed = new EmbedBuilder()
+            .setTitle('🕊️ Member Unbanned')
+            .setColor(0x57f287)
+            .addFields(
+                { name: 'User', value: `**${tag}** (\`${userId}\`)`, inline: false },
+                { name: 'Moderator', value: `${gate.member.user}`, inline: true },
+                { name: 'Reason', value: reason || '_No reason provided_', inline: false }
+            )
+            .setTimestamp();
+        await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+        log.error('Unban failed', { err: error, guildId: interaction.guildId });
+        await interaction.editReply({
+            content: `Failed to unban that user, sir. ${error?.message || ''}`.trim()
+        });
+    }
+}
+
 module.exports = {
     parseDuration,
     formatDuration,
@@ -395,5 +454,6 @@ module.exports = {
     handleTimeout,
     handleUntimeout,
     handleBan,
+    handleUnban,
     handleKick
 };

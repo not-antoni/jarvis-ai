@@ -20,6 +20,7 @@ const {
     webhookLimiter,
     siteLimiter
 } = require('./rate-limiters');
+const { createSecurityGuard } = require('./security-guard');
 
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const HEALTH_TOKEN = (process.env.HEALTH_TOKEN || '').trim() || null;
@@ -136,6 +137,13 @@ function createExpressApp({ webhookRouter, database }) {
             next();
         });
     }
+
+    // ---- Edge security: ASN block / country block / IP whitelist ----
+    const securityGuard = createSecurityGuard();
+    if (securityGuard.summary?.asnBlocked || securityGuard.summary?.countryBlocked || securityGuard.summary?.whitelistEntries) {
+        console.log('[Security] guard active:', securityGuard.summary);
+    }
+    app.use(securityGuard);
 
     // ---- Cloudflare-only access middleware ----
     const CLOUDFLARE_ONLY = process.env.CLOUDFLARE_ONLY !== 'false';

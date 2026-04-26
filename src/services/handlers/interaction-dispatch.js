@@ -15,7 +15,6 @@ const slashSocial = require('./slash-social');
 const slashUtility = require('./slash-utility');
 const moderationCommands = require('./moderation-commands');
 const warnCommands = require('./warn-commands');
-const searchCommands = require('./search-commands');
 const {
     getBlockedUserIds,
     isGuildUserBlacklisted,
@@ -353,6 +352,26 @@ async function handle(handler, interaction) {
             return;
         }
 
+        if (commandName === 'ping') {
+            shouldSetCooldown = true;
+            telemetryMetadata.category = 'core';
+            try {
+                const payload = await slashUtility.handlePing(interaction);
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply(payload);
+                } else if (interaction.deferred && !interaction.replied) {
+                    await interaction.editReply(payload);
+                } else {
+                    await interaction.followUp(payload);
+                }
+            } catch (error) {
+                if (error?.code !== 10062) {
+                    console.error('[/ping] Error:', error);
+                }
+            }
+            return;
+        }
+
         if (commandName === 'voice') {
             shouldSetCooldown = true;
             const voiceChat = require('../voice-chat-service');
@@ -491,11 +510,6 @@ async function handle(handler, interaction) {
                 response = '__QUOTE_HANDLED__';
                 break;
             }
-            case 'ping': {
-                telemetryMetadata.category = 'core';
-                response = await slashUtility.handlePing(interaction);
-                break;
-            }
             case 'features': {
                 telemetryMetadata.category = 'utilities';
                 await gameHandlers.handleFeaturesCommand(handler, interaction);
@@ -607,6 +621,11 @@ async function handle(handler, interaction) {
                 await moderationCommands.handleBan(interaction, handler);
                 return;
             }
+            case 'unban': {
+                telemetryMetadata.category = 'moderation';
+                await moderationCommands.handleUnban(interaction, handler);
+                return;
+            }
             case 'kick': {
                 telemetryMetadata.category = 'moderation';
                 await moderationCommands.handleKick(interaction, handler);
@@ -615,11 +634,6 @@ async function handle(handler, interaction) {
             case 'warn': {
                 telemetryMetadata.category = 'moderation';
                 await warnCommands.handleWarnCommand(interaction, handler);
-                return;
-            }
-            case 'search': {
-                telemetryMetadata.category = 'search';
-                await searchCommands.handleSearchCommand(interaction);
                 return;
             }
             default: {

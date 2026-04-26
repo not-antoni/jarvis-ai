@@ -27,6 +27,18 @@ const MAX_IMAGE_COUNT = 20;
 const REQUEST_TIMEOUT_MS = Number(process.env.BRAVE_SEARCH_TIMEOUT_MS) || 5000;
 const RETRY_DELAY_MS = Number(process.env.BRAVE_SEARCH_RETRY_DELAY_MS) || 250;
 
+// SafeSearch defaults — `strict` for both web and image because results feed
+// back into the model's context window. NSFW SERPs are a prompt-poisoning
+// vector even when the user didn't ask for them. Override via env.
+const VALID_SAFESEARCH = new Set(['off', 'moderate', 'strict']);
+function resolveSafesearch(scope) {
+    const envKey = scope === 'image' ? 'BRAVE_IMAGE_SAFESEARCH' : 'BRAVE_SAFESEARCH';
+    const value = String(process.env[envKey] || process.env.BRAVE_SAFESEARCH || 'strict')
+        .toLowerCase()
+        .trim();
+    return VALID_SAFESEARCH.has(value) ? value : 'strict';
+}
+
 const cache = new LRUCache({
     max: 500,
     ttl: Number(process.env.BRAVE_SEARCH_TTL_MS) || DEFAULT_TTL_MS
@@ -44,10 +56,21 @@ const STOP_WORDS = new Set([
     'jarvis','garmin','sir','hey','hi','hello','yo','ok','okay','pls','search','web'
 ]);
 
-const GIF_HINTS = /(gif|gifs|tenor|giphy|animated gif|reaction gif|looping gif)/i;
-const IMAGE_HINTS = /(image|images|photo|photos|picture|pictures|wallpaper|avatar|icon|icons|meme|memes|sticker|stickers)/i;
-const VIDEO_HINTS = /(video|videos|clip|clips|trailer|youtube|tiktok|reel|reels)/i;
-const CURRENT_HINTS = /(latest|current|recent|today|yesterday|right now|breaking|news|weather|forecast|score|scores|standings|results?)/i;
+const GIF_HINTS = /(\bgifs?\b|tenor|giphy|animated gif|reaction gif|looping gif)/i;
+const IMAGE_HINTS = /(\bimages?\b|\bphotos?\b|\bpictures?\b|\bwallpapers?\b|\bavatars?\b|\bicons?\b|\bmemes?\b|\bstickers?\b|\bart\b)/i;
+const VIDEO_HINTS = /(\bvideos?\b|\bclips?\b|\btrailers?\b|youtube|tiktok|\breels?\b)/i;
+// Time-sensitive intent — anything that points at a moment in history or a
+// quantity the model can't safely guess. Kept compact and *general* on
+// purpose (#259 follow-up): we don't want to hardcode topic-specific lists
+// (gold/btc/etc) — instead we trip on words that mean "this changes over
+// time" and let Brave do the actual lookup.
+const CURRENT_HINTS = /\b(?:latest|current|currently|recent|recently|today|tonight|tomorrow|yesterday|right now|now|breaking|news|update[ds]?|trending|live|happening|since|so far|to date|over time|so-far|earliest|oldest|biggest|smallest|first|last|highest|lowest|cheapest|fastest|best|worst|top|leading|trailing|forecast|prediction|outlook|score|scores|standings|results?|stats?|statistics|record|records|prices?|costs?|rates?|quotes?|values?|worth|exchange|conversion|translate)\b/i;
+// Year references like "2024" / "in 2030" — strong signal that the user wants
+// time-anchored info.
+const YEAR_HINT = /\b(19|20|21)\d{2}\b/;
+// Specific named entities (rough heuristic) — capitalised multi-word phrases or
+// brand-like tokens often need a fresh lookup.
+const PROPER_NOUN_HINT = /\b[A-Z][a-zA-Z0-9_]{2,}(?:\s+[A-Z][a-zA-Z0-9_]+){0,3}\b/;
 
 function getApiKey() {
     const key = (process.env.BRAVE_SEARCH_API_KEY || process.env.BRAVE_API_KEY || '').trim();
@@ -227,12 +250,25 @@ function detectSearchPlan(prompt) {
     const gifIntent = GIF_HINTS.test(lower);
     const imageIntent = gifIntent || IMAGE_HINTS.test(lower);
     const videoIntent = VIDEO_HINTS.test(lower);
-    const currentIntent = CURRENT_HINTS.test(lower);
-    const questionLike = /^(who|what|when|where|why|how)/i.test(text) && text.includes('?');
-    const phraseLooksLookup = /(is|are|was|were|means|definition of|meaning of|price of|value of|status of)/i.test(lower);
-    const explicitSearch = /(search for|look up|lookup|find info on|find out about|google|brave search|web search)/i.test(lower);
+    const yearIntent = YEAR_HINT.test(text);
+    const currentIntent = CURRENT_HINTS.test(lower) || yearIntent;
+    // Trip on a question word at the start regardless of "?" (#259) — but only
+    // when there are enough content tokens to form a real query. Avoids
+    // matching trivia like "what is love" or "how are you" alone.
+    const startsWithQuestion = /^(who|what|when|where|why|how|which)\b/i.test(text);
+    const contentTokens = tokenize(text).filter(tok => !STOP_WORDS.has(tok));
+    const questionLike = startsWithQuestion && (text.includes('?') || contentTokens.length >= 3);
+    // Tightened lookup phrasing — "is/are/was/were" alone caused false positives on
+    // chit-chat ("i am sad"). Require a noun-ish target.
+    const phraseLooksLookup = /\b(?:means|definition of|meaning of|price of|value of|status of|how many|how much|how old|how tall)\b/i.test(lower);
+    // Explicit "go search this" verbs — a user typing any of these is asking
+    // for a web lookup, regardless of the rest of the heuristic. Kept
+    // lenient because the failure mode of a missed search ("the model just
+    // hallucinated") is worse than a redundant search.
+    const explicitSearch = /(?:^|\s)(?:search|google|bing|lookup|look\s+(?:it|that|this)?\s*up|find\s+(?:me\s+)?(?:info|out|about|on)|brave\s*search|web\s*search|search\s*the\s*web|research)\b/i.test(lower);
+    const properNounLookup = startsWithQuestion && PROPER_NOUN_HINT.test(text);
 
-    if (!explicitSearch && !questionLike && !phraseLooksLookup && !currentIntent && !imageIntent && !videoIntent) {
+    if (!explicitSearch && !questionLike && !phraseLooksLookup && !currentIntent && !imageIntent && !videoIntent && !properNounLookup) {
         return null;
     }
 
@@ -247,12 +283,20 @@ function detectSearchPlan(prompt) {
         gifIntent,
         imageIntent,
         videoIntent,
-        currentIntent
+        currentIntent,
+        yearIntent
     };
 }
 
 function detectSearchIntent(prompt) {
-    return detectSearchPlan(prompt)?.query || null;
+    // Returns the cleaned prompt (polite filler stripped) so callers can
+    // surface a usable search intent, but preserves question phrasing for
+    // readability (#259). The fully rewritten short-form query lives on
+    // `plan.query` for direct API calls.
+    const plan = detectSearchPlan(prompt);
+    if (!plan) {return null;}
+    const cleaned = stripNoiseFromPrompt(plan.originalQuery);
+    return cleaned || plan.originalQuery;
 }
 
 function relevanceScore(result, queryTerms, exactQuery, { gifIntent = false } = {}) {
@@ -418,7 +462,7 @@ async function fetchWithRetry(url, { signal = null, headers = {}, retries = 2 } 
     throw lastError || new Error('request failed');
 }
 
-async function searchWeb(query, { count = DEFAULT_COUNT, signal = null } = {}) {
+async function searchWeb(query, { count = DEFAULT_COUNT, signal = null, freshness = null } = {}) {
     const apiKey = getApiKey();
     if (!apiKey) {
         return { ok: false, reason: 'Brave Search API key not configured', results: [] };
@@ -430,7 +474,7 @@ async function searchWeb(query, { count = DEFAULT_COUNT, signal = null } = {}) {
     }
 
     const safeCount = Math.max(1, Math.min(Number(count) || DEFAULT_COUNT, MAX_WEB_COUNT));
-    const cacheKey = `web::${normalizeQuery(cleanQuery)}::${safeCount}::${process.env.BRAVE_SEARCH_COUNTRY || 'us'}`;
+    const cacheKey = `web::${normalizeQuery(cleanQuery)}::${safeCount}::${process.env.BRAVE_SEARCH_COUNTRY || 'us'}::${freshness || ''}`;
     const cached = cache.get(cacheKey);
     if (cached) {
         return { ok: true, cached: true, ...cached };
@@ -442,8 +486,14 @@ async function searchWeb(query, { count = DEFAULT_COUNT, signal = null } = {}) {
     url.searchParams.set('q', rewrittenQuery);
     url.searchParams.set('count', String(safeCount));
     url.searchParams.set('country', process.env.BRAVE_SEARCH_COUNTRY || 'us');
-    url.searchParams.set('safesearch', 'moderate');
+    url.searchParams.set('safesearch', resolveSafesearch('web'));
     url.searchParams.set('spellcheck', 'true');
+    // Brave's freshness param: pd (past day), pw (past week), pm (past month),
+    // py (past year). We use it for "current/latest" intents so the LLM gets
+    // genuinely fresh results instead of years-old SERP entries (#259).
+    if (freshness && /^(pd|pw|pm|py)$/i.test(freshness)) {
+        url.searchParams.set('freshness', String(freshness).toLowerCase());
+    }
 
     try {
         const res = await fetchWithRetry(url, {
@@ -521,7 +571,7 @@ async function searchImages(query, { count = 12, signal = null, gifIntent = fals
     url.searchParams.set('q', rewrittenQuery);
     url.searchParams.set('count', String(safeCount));
     url.searchParams.set('country', process.env.BRAVE_SEARCH_COUNTRY || 'us');
-    url.searchParams.set('safesearch', 'strict');
+    url.searchParams.set('safesearch', resolveSafesearch('image'));
     url.searchParams.set('spellcheck', 'true');
 
     try {
@@ -588,7 +638,17 @@ async function searchImages(query, { count = 12, signal = null, gifIntent = fals
     }
 }
 
-async function search(query, { count = DEFAULT_COUNT, signal = null, mode = 'auto' } = {}) {
+function pickFreshness(plan, prompt) {
+    if (!plan) {return null;}
+    const lower = String(prompt || '').toLowerCase();
+    if (/today|tonight|right now|breaking|live|happening now/i.test(lower)) {return 'pd';}
+    if (/this week|recent|latest|current|news|update/i.test(lower)) {return 'pw';}
+    if (plan.currentIntent) {return 'pm';}
+    if (plan.yearIntent) {return 'py';}
+    return null;
+}
+
+async function search(query, { count = DEFAULT_COUNT, signal = null, mode = 'auto', freshness = null } = {}) {
     const cleanQuery = String(query || '').trim();
     if (!cleanQuery) {
         return { ok: false, reason: 'Empty query', results: [] };
@@ -605,7 +665,8 @@ async function search(query, { count = DEFAULT_COUNT, signal = null, mode = 'aut
         return searchImages(plan.query || cleanQuery, { count, signal, gifIntent: Boolean(plan.gifIntent) });
     }
 
-    return searchWeb(plan.query || cleanQuery, { count, signal });
+    const effectiveFreshness = freshness || pickFreshness(plan, cleanQuery);
+    return searchWeb(plan.query || cleanQuery, { count, signal, freshness: effectiveFreshness });
 }
 
 async function searchByIntent(prompt, options = {}) {
@@ -613,7 +674,11 @@ async function searchByIntent(prompt, options = {}) {
     if (!plan) {
         return { ok: false, reason: 'No searchable intent detected', results: [] };
     }
-    return search(plan.query, { ...options, mode: plan.mode });
+    return search(plan.query, {
+        ...options,
+        mode: plan.mode,
+        freshness: options.freshness || pickFreshness(plan, prompt)
+    });
 }
 
 module.exports = {

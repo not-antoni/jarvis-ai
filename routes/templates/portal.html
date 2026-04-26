@@ -304,6 +304,7 @@
   const state = {
     user: null,
     guilds: [],
+    guildsLoaded: false,
     currentGuildId: null,
     currentConfig: null,
     pendingPatch: {},
@@ -370,6 +371,13 @@
   }
 
   function renderGuildList() {
+    if (!state.guildsLoaded) {
+      return `
+        <h1>Your servers</h1>
+        <p class="subtitle">Looking up servers where you can manage Jarvis…</p>
+        <div class="loading">Loading servers…</div>
+      `;
+    }
     if (!state.guilds.length) {
       return `
         <div class="empty-state">
@@ -640,16 +648,28 @@
   }
 
   async function bootstrap() {
+    // Step 1: get the user immediately from the lightweight endpoint so the
+    // header, avatar and "Your servers" shell render straight away (#271).
     try {
-      const me = await apiFetch('/portal/api/me');
-      state.user = me.user;
-      state.guilds = me.manageableGuilds || [];
+      const userRes = await apiFetch('/portal/api/user');
+      state.user = userRes.user;
     } catch (error) {
-      // Not signed in — show login
       state.user = null;
       renderApp();
       return;
     }
+    renderApp();
+
+    // Step 2: load guilds in the background. Manage-able guilds appear when
+    // the API responds; never block the initial paint on it.
+    try {
+      const me = await apiFetch('/portal/api/me');
+      state.guilds = me.manageableGuilds || [];
+    } catch (error) {
+      // Stay with the empty list rather than logging out.
+      state.guilds = [];
+    }
+    state.guildsLoaded = true;
     renderApp();
   }
 

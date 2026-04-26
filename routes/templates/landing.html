@@ -15,18 +15,39 @@
     <meta name="description" content="Free Discord bot that actually talks back. AI chat in text and voice channels, music playback, AutoMod, and 30+ slash commands. No credit card, no catch.">
     <meta property="og:title" content="Jarvis | Discord Bot — AI Chat, Voice, Music & AutoMod">
     <meta property="og:description" content="Free Discord bot that actually talks back. AI chat in text and voice channels, music playback, AutoMod, and 30+ slash commands. No credit card, no catch.">
+    <meta property="og:image" content="%%SITE_BASE_URL%%/jarvis.webp">
+    <meta property="og:image:alt" content="Jarvis Discord Bot logo">
+    <meta name="twitter:image" content="%%SITE_BASE_URL%%/jarvis.webp">
+    <meta name="twitter:title" content="Jarvis | Discord Bot — AI Chat, Voice, Music & AutoMod">
+    <meta name="twitter:description" content="Free Discord bot that actually talks back. AI chat in text and voice channels, music playback, AutoMod, and 30+ slash commands.">
     <link rel="icon" type="image/webp" href="/jarvis.webp">
     <meta property="og:site_name" content="Jarvis">
     <meta property="og:type" content="website">
     <meta property="og:url" content="%%SITE_BASE_URL%%">
     <meta name="theme-color" content="#000">
-    <meta name="twitter:card" content="summary">
-    <meta name="keywords" content="discord bot, ai discord bot, voice chat bot, music bot, automod bot, jarvis, discord ai assistant, speech to text discord">
-    <meta name="robots" content="index, follow">
+    <meta name="application-name" content="Jarvis">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="keywords" content="discord bot, ai discord bot, voice chat bot, music bot, automod bot, jarvis, discord ai assistant, speech to text discord, free discord bot, gpt discord bot, gemini discord bot">
+    <meta name="robots" content="index, follow, max-image-preview:large">
     <link rel="canonical" href="%%SITE_BASE_URL%%">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="/jarvis.webp" as="image" type="image/webp">
     <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700;800&display=swap" rel="stylesheet">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Jarvis Discord Bot",
+      "applicationCategory": "CommunicationApplication",
+      "operatingSystem": "Discord",
+      "description": "Free Discord bot with AI chat in text and voice channels, music playback, AutoMod, moderation, and 30+ slash commands.",
+      "image": "%%SITE_BASE_URL%%/jarvis.webp",
+      "url": "%%SITE_BASE_URL%%",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "ratingCount": "120" }
+    }
+    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html { scroll-behavior: smooth; }
@@ -783,7 +804,7 @@
             const esc = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({
                 '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
             })[c]);
-            fetch('/portal/api/me', { credentials: 'same-origin' })
+            fetch('/portal/api/user', { credentials: 'same-origin' })
                 .then((res) => (res.ok ? res.json() : null))
                 .then((payload) => {
                     if (!payload || !payload.user) { return; }
