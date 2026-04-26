@@ -127,13 +127,6 @@ OPENROUTER_API_KEY=... GROQ_API_KEY=... CEREBRAS_API_KEY=... SAMBANOVA_API_KEY=.
 MISTRAL_API_KEY=... GOOGLE_AI_API_KEY=... OPENAI_API_KEY=... NVIDIA_API_KEY=...
 AI_GATEWAY_API_KEY=...                        # Vercel AI Gateway
 
-# --- Google AI for Startups credit (#264) ---
-GOOGLE_TRIAL=...                              # AI Studio token (AIza... or AQ...)
-GOOGLE_TRIAL_BACKEND=gemini                   # gemini | vertex | both
-VERTEX_LOCATION=global                        # used when backend=vertex
-VERTEX_MODELS=                                # CSV; default gemini-2.5-flash
-# VERTEX_PROVIDER=true is an alias for GOOGLE_TRIAL_BACKEND=vertex.
-
 # --- Edge security guard (#262 / #265 / #266) ---
 BLOCKED_ASNS=14061,16276                      # comma-separated AS numbers
 BLOCKED_COUNTRIES=ru,kp                       # ISO 3166-1 alpha-2 codes
