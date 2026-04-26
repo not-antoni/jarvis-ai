@@ -34,7 +34,17 @@ jobs:
           PUPPETEER_SKIP_DOWNLOAD: "1"
         run: npm ci
 
+      # Throwaway env values — only exist to satisfy config/validate.js zod
+      # schema so unit tests can `require('config')`. NONE of these are real
+      # secrets and NOTHING in the test suite actually connects to Discord,
+      # MongoDB, or any AI provider.
       - name: Run tests with coverage
+        env:
+          ALLOW_START_WITHOUT_DB: "true"
+          DISCORD_TOKEN: "test.token.value"
+          MASTER_KEY_BASE64: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+          MONGO_URI_MAIN: "mongodb://localhost:27017/test"
+          MONGO_URI_VAULT: "mongodb://localhost:27017/test"
         run: npm run test:coverage
 
       - name: Upload coverage report
