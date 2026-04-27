@@ -19,15 +19,18 @@ function getProviderAttemptTimeoutMs(provider) {
     if (provider?.attemptTimeoutMs && Number.isFinite(provider.attemptTimeoutMs)) {
         return Math.max(250, provider.attemptTimeoutMs);
     }
+    // Aggressive per-provider caps so one laggy provider can't burn the whole
+    // failover budget. With a 60s budget this guarantees at least 6 attempts
+    // even when Google goes silent.
     if (provider?.type === 'google') {
         const model = String(provider.model || '').toLowerCase();
-        if (/gemma-4|gemini-(?:2\.5|3(?:\.|-)pro)/i.test(model)) {return 14_000;}
-        if (/gemini-(?:3\.1-flash-lite-preview|2\.0-flash)/i.test(model)) {return 10_000;}
-        return 12_000;
+        if (/gemma-4|gemini-(?:2\.5|3(?:\.|-)pro)/i.test(model)) {return 9_000;}
+        if (/gemini-(?:3\.1-flash-lite-preview|2\.0-flash)/i.test(model)) {return 7_000;}
+        return 8_000;
     }
     const family = String(provider?.family || '').toLowerCase();
-    if (family === 'cerebras' || family === 'sambanova') {return 12_000;}
-    return 8_000;
+    if (family === 'cerebras' || family === 'sambanova') {return 9_000;}
+    return 7_000;
 }
 
 function getRequestBudgetMs(manager) {
@@ -37,7 +40,17 @@ function getRequestBudgetMs(manager) {
     if (Number.isFinite(Number(config.ai?.requestBudgetMs)) && Number(config.ai.requestBudgetMs) > 0) {
         return Math.max(250, Number(config.ai.requestBudgetMs));
     }
-    return 18_000;
+    return 60_000;
+}
+
+// Minimum number of distinct providers that must be attempted before the
+// failover loop allows a budget-exhaustion exit. Prevents a single slow
+// provider (typically Google when its keys are throttled) from killing the
+// whole failover rotation. Override with AI_MIN_FAILOVER_ATTEMPTS.
+function getMinFailoverAttempts() {
+    const raw = Number(process.env.AI_MIN_FAILOVER_ATTEMPTS);
+    if (Number.isFinite(raw) && raw > 0) {return Math.min(20, Math.max(1, Math.floor(raw)));}
+    return 3;
 }
 
 function formatDurationLabel(durationMs) {
@@ -120,6 +133,7 @@ function resolveCooldownPolicy(provider, error) {
 module.exports = {
     getProviderAttemptTimeoutMs,
     getRequestBudgetMs,
+    getMinFailoverAttempts,
     formatDurationLabel,
     benchProvider,
     resolveCooldownPolicy

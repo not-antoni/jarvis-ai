@@ -151,7 +151,7 @@ const rawConfig = {
     // AI Provider Configuration
     ai: {
         cooldownMs: process.env.AI_COOLDOWN_MS ? Number(process.env.AI_COOLDOWN_MS) : 5000,
-        requestBudgetMs: parsePositiveIntEnv('AI_REQUEST_BUDGET_MS', 18000),
+        requestBudgetMs: parsePositiveIntEnv('AI_REQUEST_BUDGET_MS', 60000),
         maxTokens: parsePositiveIntEnv(
             'AI_MAX_OUTPUT_TOKENS',
             parsePositiveIntEnv('AI_MAX_TOKENS', 1024)

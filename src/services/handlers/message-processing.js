@@ -7,6 +7,7 @@ const clankerGif = require('../../utils/clanker-gif');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
 const { isGuildUserBlacklisted } = require('../../utils/guild-blacklist');
 const { resolveActiveAiChannelId, isMatchingAiChannel } = require('../../utils/guild-ai-channel');
+const { isMemberAiBlacklistedByRole } = require('../../utils/guild-ai-role-blacklist');
 
 const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,1391010888915484672')
     .split(',')
@@ -35,6 +36,12 @@ if (!message.guild) {
 }
 
 if (await isGuildUserBlacklisted(message.guild.id, message.author.id)) {
+    return;
+}
+
+// Role-based AI blacklist — silently ignore messages from members who hold
+// any role configured via /role. Slash commands and other modules still work.
+if (message.member && await isMemberAiBlacklistedByRole(message.member)) {
     return;
 }
 

@@ -523,6 +523,29 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
+        .setName('role')
+        .setDescription('Block roles from using Jarvis AI chat in this server (admin only)')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .addSubcommand(sub =>
+            sub.setName('add')
+                .setDescription('Block a role from using Jarvis AI chat')
+                .addRoleOption(opt =>
+                    opt.setName('role').setDescription('Role to block').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('remove')
+                .setDescription('Unblock a role from using Jarvis AI chat')
+                .addRoleOption(opt =>
+                    opt.setName('role').setDescription('Role to unblock').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('list')
+                .setDescription('Show roles currently blocked from Jarvis AI chat')
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
         .setName('channel')
         .setDescription('Restrict Jarvis chat to one channel in this server')
         .addSubcommand(sub =>

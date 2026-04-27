@@ -26,6 +26,11 @@ const {
     resolveActiveAiChannelId,
     isMatchingAiChannel
 } = require('../../utils/guild-ai-channel');
+const { PermissionsBitField } = require('discord.js');
+const {
+    getBlockedAiRoleIds,
+    isMemberAiBlacklistedByRole
+} = require('../../utils/guild-ai-role-blacklist');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -230,6 +235,120 @@ async function handleChannel(interaction, handler) {
     };
 }
 
+/**
+ * /role — manage which roles are blocked from triggering Jarvis AI chat.
+ * Server owners and Administrator-permission users only. Reply is public so
+ * the whole server can see who got added/removed.
+ */
+async function handleRole(interaction, handler) {
+    if (!interaction.guild) {
+        return {
+            content: 'This command only works inside a server, sir.',
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    const database = require('../database');
+    if (!database.isConnected) {
+        return {
+            content: 'Database is offline, sir. Cannot manage the role blacklist right now.',
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    const { guild } = interaction;
+    const member = interaction.member?.guild
+        ? interaction.member
+        : await guild.members.fetch(interaction.user.id).catch(() => null);
+
+    // Stricter than /channel: only server owner or members with the
+    // Administrator permission may manage AI role blacklists.
+    const isOwner = member?.id === guild.ownerId;
+    const isAdmin = member?.permissions?.has?.(PermissionsBitField.Flags.Administrator);
+    if (!isOwner && !isAdmin) {
+        return {
+            content: 'Only the server owner or members with Administrator may do that, sir.',
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    const guildConfig = await handler.getGuildConfig(guild);
+    const blockedRoleIds = getBlockedAiRoleIds(guildConfig);
+    const subcommand = interaction.options.getSubcommand();
+
+    if (subcommand === 'add') {
+        const role = interaction.options.getRole('role', true);
+
+        if (role.id === guild.id) {
+            return {
+                content: 'Cannot blacklist @everyone, sir.',
+                allowedMentions: { parse: [] }
+            };
+        }
+
+        if (role.managed) {
+            return {
+                content: 'Cannot blacklist a managed/integration role, sir.',
+                allowedMentions: { parse: [] }
+            };
+        }
+
+        if (blockedRoleIds.includes(role.id)) {
+            return {
+                content: `${role} is already blocked from Jarvis AI chat, sir.`,
+                allowedMentions: { parse: [] }
+            };
+        }
+
+        await database.addGuildBlockedAiRole(guild.id, role.id);
+        return {
+            content: `🚫 ${role} can no longer use Jarvis AI chat in **${guild.name}**, sir.`,
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    if (subcommand === 'remove') {
+        const role = interaction.options.getRole('role', true);
+
+        if (!blockedRoleIds.includes(role.id)) {
+            return {
+                content: `${role} is not currently blocked from Jarvis AI chat, sir.`,
+                allowedMentions: { parse: [] }
+            };
+        }
+
+        await database.removeGuildBlockedAiRole(guild.id, role.id);
+        return {
+            content: `✅ ${role} can use Jarvis AI chat again in **${guild.name}**, sir.`,
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    if (subcommand === 'list') {
+        if (blockedRoleIds.length === 0) {
+            return {
+                content: `No roles are currently blocked from Jarvis AI chat in **${guild.name}**, sir.`,
+                allowedMentions: { parse: [] }
+            };
+        }
+
+        const lines = blockedRoleIds.map(id => {
+            const role = guild.roles.cache.get(id);
+            return role ? `• ${role} (\`${id}\`)` : `• Unknown role (\`${id}\`)`;
+        });
+
+        return {
+            content: `**Roles blocked from Jarvis AI chat in ${guild.name}:**\n${lines.join('\n')}`,
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    return {
+        content: 'That role action is not recognized, sir.',
+        allowedMentions: { parse: [] }
+    };
+}
+
 async function handle(handler, interaction) {
     const { commandName } = interaction;
     const userId = interaction.user.id;
@@ -307,6 +426,29 @@ async function handle(handler, interaction) {
                 } catch (error) {
                     if (error?.code !== 10062) {
                         console.warn('Failed to send AI channel restriction notice:', error);
+                    }
+                }
+                return;
+            }
+
+            // Role-based AI blacklist — also gate the /jarvis slash entrypoint
+            // so blocked roles can't bypass the message-handler check.
+            const member = interaction.member?.guild
+                ? interaction.member
+                : await guild.members.fetch(userId).catch(() => null);
+            if (member && await isMemberAiBlacklistedByRole(member)) {
+                telemetryStatus = 'error';
+                telemetryMetadata.reason = 'ai-role-blacklisted';
+                try {
+                    const notice = 'Your role is blocked from Jarvis AI chat in this server, sir.';
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: notice, flags: MessageFlags.Ephemeral });
+                    } else if (interaction.deferred && !interaction.replied) {
+                        await interaction.editReply(notice);
+                    }
+                } catch (error) {
+                    if (error?.code !== 10062) {
+                        console.warn('Failed to send AI role-blacklist notice:', error);
                     }
                 }
                 return;
@@ -599,6 +741,11 @@ async function handle(handler, interaction) {
             case 'channel': {
                 telemetryMetadata.category = 'operations';
                 response = await handleChannel(interaction, handler);
+                break;
+            }
+            case 'role': {
+                telemetryMetadata.category = 'operations';
+                response = await handleRole(interaction, handler);
                 break;
             }
             case 'purge': {

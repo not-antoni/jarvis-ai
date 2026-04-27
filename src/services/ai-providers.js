@@ -46,14 +46,6 @@ function discoverEnvKeys(prefix) {
         .map(key => process.env[key])
         .filter(Boolean);
 }
-function parseCsvEnvList(value) {
-    if (!value) {return null;}
-    const items = String(value)
-        .split(/[\s,]+/)
-        .map(item => item.trim())
-        .filter(Boolean);
-    return items.length ? items : null;
-}
 // Determine storage mode: MongoDB for Render, file for selfhost
 const IS_SELFHOST = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
 const PROVIDER_STATE_COLLECTION = 'provider_state';
@@ -316,65 +308,6 @@ class AIProviderManager {
                 });
             });
         });
-        // ---------- Google AI Trial (Startups credits, GOOGLE_TRIAL) ----------
-        // Backend selection (#264). Same env var, two transports:
-        //   default                         → Generative Language API (AIza/AQ
-        //                                     keys from AI Studio — what most
-        //                                     people currently have).
-        //   GOOGLE_TRIAL_BACKEND=vertex     → Vertex AI Express Mode REST
-        //                                     (aiplatform.googleapis.com).
-        //   GOOGLE_TRIAL_BACKEND=both       → register both transports for
-        //                                     redundancy; the failover loop
-        //                                     benches whichever 401s.
-        // Aliases: VERTEX_PROVIDER=true is the same as backend=vertex (kept
-        // for back-compat with the previous attempt).
-        const googleTrialKey = (process.env.GOOGLE_TRIAL || '').trim();
-        if (googleTrialKey) {
-            const vertexLocation = (process.env.VERTEX_LOCATION || 'global').trim();
-            const backendRaw = (process.env.GOOGLE_TRIAL_BACKEND || '').toLowerCase();
-            const vertexOverride = (process.env.VERTEX_PROVIDER || '').toLowerCase() === 'true';
-            const backend = (() => {
-                if (backendRaw === 'vertex' || vertexOverride) {return 'vertex';}
-                if (backendRaw === 'both') {return 'both';}
-                if (backendRaw === 'gemini' || backendRaw === 'generative' || backendRaw === '') {return 'gemini';}
-                return 'gemini';
-            })();
-
-            if (backend === 'gemini' || backend === 'both') {
-                // Default — Generative Language API (same surface as
-                // GOOGLE_AI_API_KEY but billed against trial credit).
-                googleModels.forEach((model) => {
-                    this.providers.push({
-                        name: `GoogleAITrial-${model}`,
-                        client: new GoogleGenerativeAI(googleTrialKey),
-                        model,
-                        type: 'google',
-                        family: 'google',
-                        costTier: 'free',
-                        credentialGroup: 'google:trial'
-                    });
-                });
-            }
-            if (backend === 'vertex' || backend === 'both') {
-                // Vertex AI Express Mode — REST endpoint, no SDK or project
-                // config needed. Default model is one that's broadly served
-                // on Vertex; override with VERTEX_MODELS.
-                const vertexModels = parseCsvEnvList(process.env.VERTEX_MODELS) || ['gemini-2.5-flash'];
-                vertexModels.forEach((model) => {
-                    this.providers.push({
-                        name: `VertexExpress-${model}`,
-                        apiKey: googleTrialKey,
-                        location: vertexLocation,
-                        model,
-                        type: 'vertex-express',
-                        family: 'google',
-                        costTier: 'free',
-                        credentialGroup: 'google:trial'
-                    });
-                });
-            }
-            console.log(`Google trial key backend: ${backend}`);
-        }
         // ---------- DeepSeek via Vercel AI Gateway (OpenAI-compatible) ----------
         // Auto-discover all AI_GATEWAY_API_KEY, AI_GATEWAY_API_KEY2, etc.
         const deepseekGatewayKeys = discoverEnvKeys('AI_GATEWAY_API_KEY');
@@ -783,7 +716,7 @@ class AIProviderManager {
                 case 'nvidia':
                     return providerName.startsWith('nvidia');
                 case 'google':
-                    return providerName.startsWith('googleai') || providerName.startsWith('vertexexpress');
+                    return providerName.startsWith('googleai');
                 case 'cerebras':
                     return providerName.startsWith('cerebras');
                 case 'sambanova':
@@ -1055,7 +988,7 @@ class AIProviderManager {
             if (name === 'gpt5nano') {types.add('openai');}
             else if (name.startsWith('groq')) {types.add('groq');}
             else if (name.startsWith('openrouter')) {types.add('openrouter');}
-            else if (name.startsWith('googleai') || name.startsWith('vertexexpress')) {types.add('google');}
+            else if (name.startsWith('googleai')) {types.add('google');}
             else if (name.startsWith('deepseek')) {types.add('deepseek');}
             else if (name.startsWith('cerebras')) {types.add('cerebras');}
             else if (name.startsWith('sambanova')) {types.add('sambanova');}

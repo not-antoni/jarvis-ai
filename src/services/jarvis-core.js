@@ -147,22 +147,37 @@ function selectRelevantMemories(memories, userInput, maxRecent, maxRelevant) {
     return merged;
 }
 
-const SYSTEM_PROMPT_PATH = path.join(__dirname, '..', '..', 'config', 'system-prompt.txt');
-let _cachedSystemPrompt = null;
-let _cachedSystemPromptMtime = 0;
-function loadSystemPrompt() {
+const PROMPTS_DIR = path.join(__dirname, '..', '..', 'config');
+const SYSTEM_PROMPT_PATH = path.join(PROMPTS_DIR, 'system-prompt.txt');
+const CLOSING_ANCHOR_PATH = path.join(PROMPTS_DIR, 'prompts', 'closing-anchor.txt');
+const WEB_SEARCH_ANCHOR_PATH = path.join(PROMPTS_DIR, 'prompts', 'web-search-anchor.txt');
+
+const _promptFileCache = new Map(); // path -> { content, mtimeMs }
+
+function loadPromptFile(filePath, fallback = '') {
     try {
-        const stat = fs.statSync(SYSTEM_PROMPT_PATH);
-        if (_cachedSystemPrompt && stat.mtimeMs === _cachedSystemPromptMtime) {
-            return _cachedSystemPrompt;
+        const stat = fs.statSync(filePath);
+        const cached = _promptFileCache.get(filePath);
+        if (cached && cached.mtimeMs === stat.mtimeMs) {
+            return cached.content;
         }
-        _cachedSystemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, 'utf8').trim();
-        _cachedSystemPromptMtime = stat.mtimeMs;
+        const content = fs.readFileSync(filePath, 'utf8').trim();
+        _promptFileCache.set(filePath, { content, mtimeMs: stat.mtimeMs });
+        return content;
     } catch (err) {
-        console.warn('[JarvisAI] Failed to load system-prompt.txt, using inline fallback:', err.message);
-        _cachedSystemPrompt = null;
+        console.warn(`[JarvisAI] Failed to load ${path.basename(filePath)}, using fallback:`, err.message);
+        return fallback;
     }
-    return _cachedSystemPrompt;
+}
+
+function loadSystemPrompt() {
+    return loadPromptFile(SYSTEM_PROMPT_PATH, null);
+}
+function loadClosingAnchor() {
+    return loadPromptFile(CLOSING_ANCHOR_PATH, '');
+}
+function loadWebSearchAnchor() {
+    return loadPromptFile(WEB_SEARCH_ANCHOR_PATH, '');
 }
 
 
@@ -418,8 +433,13 @@ class JarvisAI {
                 }
             }
 
-            // Closing anchor — models attend most to start and end of prompts
-            systemPrompt += '\n\nReminder: You are Jarvis. In-character, always. SHORT replies. No "Ah," or "Oh," openers. No butler-pastiche openers ("A rather pedestrian inquiry", "I do, however, find..."). No trailing rhetorical questions. No "— unless you\'re [X]" dash-tails — same formula, banned. Absurd / violent / weapons-adjacent hypotheticals: commit with a plausible detail and a dry tag. Never deflect. Never ask "should I simulate this" — the scene is already set. Never say "as an AI", "in this scenario", "hypothetically speaking", "I should clarify" — these break character. No AI/computer metaphors about yourself. No markdown. Every response must feel completely different from your last one. If a [THREAD_CONTEXT] block is present, every line is tagged with the speaker name — never confuse one user with another, never assume the current speaker said earlier lines unless the name matches, and never invent quotes you cannot see in that block.';
+            // Closing anchor — models attend most to start and end of prompts.
+            // Loaded from config/prompts/closing-anchor.txt so operators can
+            // tune it without editing source.
+            const closingAnchor = loadClosingAnchor();
+            if (closingAnchor) {
+                systemPrompt += `\n\n${closingAnchor}`;
+            }
 
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
@@ -522,7 +542,10 @@ class JarvisAI {
             const webSearch = await maybeBuildWebSearchBlock(userInput, { voice: Boolean(options.voice) });
             if (webSearch) {
                 contextPrefix = `${webSearch.block}\n\n${contextPrefix}`;
-                systemPrompt += '\n\n[If a WEB_SEARCH or IMAGE_SEARCH block is present, use ONLY the evidence in that block. Do not invent URLs, citations, media links, GIFs, prices, dates, or quotations. If the user asks for a price, score, exchange rate, or other live datum and the search block does not contain it, say you could not verify it — never guess. If a requested GIF/image is not explicitly verified in the block, say you could not find one.]';
+                const webSearchAnchor = loadWebSearchAnchor();
+                if (webSearchAnchor) {
+                    systemPrompt += `\n\n[${webSearchAnchor}]`;
+                }
             }
 
             const context = `[USER: ${userName}]

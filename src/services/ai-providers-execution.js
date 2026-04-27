@@ -16,6 +16,7 @@ const {
 const {
     getProviderAttemptTimeoutMs,
     getRequestBudgetMs,
+    getMinFailoverAttempts,
     benchProvider,
     resolveCooldownPolicy
 } = require('./ai/cooldown');
@@ -26,18 +27,6 @@ const GEMINI_SAFETY_OFF =[
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
-];
-
-// Vertex AI accepts the same BLOCK_NONE values plus a civic-integrity
-// category that the public Gemini SDK doesn't expose. We send strings
-// directly so we don't depend on the Gemini SDK enum on the Vertex path
-// (#264 — keeps Vertex Express as permissive as Gemini Generative).
-const VERTEX_SAFETY_OFF = [
-    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
 ];
 
 // ============ EXECUTION ENGINE ============
@@ -60,18 +49,21 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
     // a single refusal from burning the failover budget across 10+ keys.
     const blockedFamilies = new Set();
     const requestStartedAt = Date.now();
-    
-    // Force a higher failover budget (at least 60 seconds) to support slow responses from large models
-    let requestBudgetMs = getRequestBudgetMs(manager);
-    if (requestBudgetMs < 60000) {
-        requestBudgetMs = 60000;
-    }
-    
+
+    const requestBudgetMs = getRequestBudgetMs(manager);
+    const minAttempts = getMinFailoverAttempts();
+
     let lastError = null;
     while (true) {
         const elapsedMs = Date.now() - requestStartedAt;
         const remainingBudgetMs = requestBudgetMs - elapsedMs;
-        if (remainingBudgetMs < 250) {
+        // Hard ceiling: never exceed 2x the configured budget — even when
+        // honouring the min-attempts guarantee — so a wedged provider can't
+        // hold the request open forever (#318).
+        const overBudgetCeilingMs = requestBudgetMs * 2;
+        const hasMinAttempts = attemptedProviders.size >= minAttempts;
+        const overHardCeiling = elapsedMs >= overBudgetCeilingMs;
+        if (remainingBudgetMs < 250 && (hasMinAttempts || overHardCeiling)) {
             lastError = Object.assign(
                 new Error(`AI failover budget exhausted after ${requestBudgetMs}ms`),
                 { status: 408, transient: true, providerFault: false }
@@ -92,89 +84,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         const started = Date.now();
         const callOnce = async() => {
             const effectiveSystemPrompt = resolveSystemPrompt(systemPrompt, provider);
-            if (provider.type === 'vertex-express') {
-                // Vertex AI in "Express Mode" — the API key flow used by the
-                // Google AI for Startups credits (#264). Uses the public
-                // aiplatform endpoint, no project/SA needed.
-                const location = provider.location || 'global';
-                const host = location === 'global'
-                    ? 'aiplatform.googleapis.com'
-                    : `${location}-aiplatform.googleapis.com`;
-                const url = `https://${host}/v1/publishers/google/models/${encodeURIComponent(provider.model)}:generateContent`;
-                const body = {
-                    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-                    systemInstruction: { role: 'system', parts: [{ text: effectiveSystemPrompt }] },
-                    safetySettings: VERTEX_SAFETY_OFF,
-                    generationConfig: {
-                        temperature: config.ai?.temperature ?? 0.7,
-                        maxOutputTokens: maxTokens
-                    }
-                };
-                let response;
-                try {
-                    response = await aiFetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            // Express-mode keys go in the standard
-                            // x-goog-api-key header (Bearer also works for
-                            // OAuth ADC tokens; we send both to be tolerant).
-                            'x-goog-api-key': provider.apiKey,
-                            'Authorization': `Bearer ${provider.apiKey}`
-                        },
-                        body: JSON.stringify(body)
-                    });
-                } catch (fetchError) {
-                    throw normalizeGoogleError(fetchError, provider.name);
-                }
-                if (!response.ok) {
-                    const errorText = await response.text().catch(() => 'Unknown error');
-                    throw normalizeGoogleError(
-                        Object.assign(new Error(errorText), { status: response.status }),
-                        provider.name
-                    );
-                }
-                const data = await response.json().catch(() => ({}));
-                const blockReason = data?.promptFeedback?.blockReason;
-                if (blockReason) {
-                    throw Object.assign(new Error(`Vertex blocked: ${blockReason}`), {
-                        status: 400, providerFault: false, promptBlocked: true
-                    });
-                }
-                const finishReason = data?.candidates?.[0]?.finishReason;
-                if (finishReason === 'SAFETY' || finishReason === 'PROHIBITED_CONTENT') {
-                    throw Object.assign(new Error(`Vertex safety filter triggered (${finishReason})`), {
-                        status: 400, providerFault: false, promptBlocked: true
-                    });
-                }
-                const parts = data?.candidates?.flatMap(c => c?.content?.parts || []) || [];
-                const text = parts
-                    .filter(part => !part?.thought)
-                    .map(part => (typeof part?.text === 'string' ? part.text : null))
-                    .filter(Boolean)
-                    .join('\n')
-                    .trim();
-                if (!text) {
-                    throw Object.assign(
-                        new Error(`Empty response from ${provider.name}${finishReason ? ` (finishReason=${finishReason})` : ''}`),
-                        { status: 502, transient: true }
-                    );
-                }
-                const cleaned = sanitizeAssistantMessage(text);
-                if (!cleaned) {
-                    throw Object.assign(
-                        new Error(`Sanitized empty content from ${provider.name}`),
-                        { status: 502 }
-                    );
-                }
-                return {
-                    choices: [{ message: { content: cleaned } }],
-                    usage: {
-                        prompt_tokens: data?.usageMetadata?.promptTokenCount || 0,
-                        completion_tokens: data?.usageMetadata?.candidatesTokenCount || 0
-                    }
-                };
-            }
             if (provider.type === 'google') {
                 // Fixed to apply to ALL gemma models, so it doesn't try using SystemInstructions for gemma-4 which causes failures
                 const isGemmaLegacy = /^gemma-/i.test(provider.model);
@@ -451,16 +360,15 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         };
         try {
             const retryAttempts = Math.max(0, Number(config.ai?.retryAttempts || 0));
-            
-            // Force a minimum timeout of 30s to allow heavy models to respond
-            let providerTimeoutMs = getProviderAttemptTimeoutMs(provider);
-            if (providerTimeoutMs < 30000) {
-                providerTimeoutMs = 30000;
-            }
-            
+
+            // Use the per-family timeout from cooldown.js (8-9s typical) so a
+            // single laggy provider can never burn the whole failover budget.
+            // We still bound it by remainingBudgetMs to avoid over-spending.
+            const providerTimeoutMs = getProviderAttemptTimeoutMs(provider);
+            const minRemainingForAttempt = Math.max(remainingBudgetMs, 2_000);
             const PROVIDER_ATTEMPT_TIMEOUT = Math.max(
                 250,
-                Math.min(providerTimeoutMs, remainingBudgetMs)
+                Math.min(providerTimeoutMs, minRemainingForAttempt)
             );
             
             const retryPromise = manager._retry(callOnce, {

@@ -773,6 +773,36 @@ class DatabaseManager {
             { upsert: false }
         );
     }
+    // ─── AI role blacklist ────────────────────────────────────────────────
+    // Roles whose members cannot trigger Jarvis AI chat in this guild.
+    // Slash commands and other modules are unaffected; this only gates the
+    // conversational AI (mentions, replies, wake-words, /jarvis prompts).
+    async addGuildBlockedAiRole(guildId, roleId) {
+        return this._patchGuildConfig(guildId, {
+            $addToSet: { blockedAiRoleIds: String(roleId) },
+            $set: { updatedAt: new Date() },
+            $setOnInsert: { createdAt: new Date() }
+        });
+    }
+    async removeGuildBlockedAiRole(guildId, roleId) {
+        return this._patchGuildConfig(
+            guildId,
+            {
+                $pull: { blockedAiRoleIds: String(roleId) },
+                $set: { updatedAt: new Date() }
+            },
+            { upsert: false }
+        );
+    }
+    async setGuildBlockedAiRoles(guildId, roleIds = []) {
+        const clean = Array.isArray(roleIds)
+            ? roleIds.map(id => String(id)).filter(id => /^\d{5,30}$/.test(id))
+            : [];
+        return this._patchGuildConfig(guildId, {
+            $set: { blockedAiRoleIds: clean, updatedAt: new Date() },
+            $setOnInsert: { createdAt: new Date() }
+        });
+    }
     async updateGuildFeatures(guildId, features = {}) {
         if (!this.isConnected) {throw new Error('Database not connected');}
         const normalized = Object.entries(features || {}).reduce((acc, [key, value]) => {

@@ -207,6 +207,14 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
+        name: 'role',
+        description: 'Block roles from using Jarvis AI chat in this server.',
+        category: 'Operations',
+        usage: '/role add|remove|list role:@Role',
+        feature: 'coreChat',
+        ephemeral: false
+    },
+    {
         name: 'play',
         description: 'Queue music from YouTube, SoundCloud, or audio file uploads.',
         category: 'Music',
