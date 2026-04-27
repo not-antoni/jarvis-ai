@@ -60,7 +60,7 @@
     "ffprobe-static": "^3.0.0",
     "googleapis": "^171.4.0",
     "helmet": "^8.0.0",
-    "lru-cache": "^10.2.2",
+    "lru-cache": "^11.3.5",
     "mongodb": "^7.2.0",
     "node-cron": "^4.2.1",
     "openai": "^6.34.0",
