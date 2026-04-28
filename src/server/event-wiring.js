@@ -28,6 +28,22 @@ function wireEventHandlers(ctx) {
         console.log(
             `Joined new guild ${guild.name ?? 'Unknown'} (${guild.id}). Synchronizing slash commands.`
         );
+        try {
+            const portal = require('../../routes/portal');
+            if (typeof portal.invalidateUserGuildsCache === 'function') {
+                portal.invalidateUserGuildsCache();
+            }
+        } catch (_) {}
+    });
+
+    client.on('guildDelete', async guild => {
+        console.log(`Left guild ${guild.name ?? 'Unknown'} (${guild.id}).`);
+        try {
+            const portal = require('../../routes/portal');
+            if (typeof portal.invalidateUserGuildsCache === 'function') {
+                portal.invalidateUserGuildsCache();
+            }
+        } catch (_) {}
     });
 
 

@@ -86,29 +86,51 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 1.25rem;
+      padding: 1rem;
       cursor: pointer;
-      transition: transform 0.15s, border-color 0.15s;
-      display: flex; gap: 0.9rem; align-items: center;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      min-height: 186px;
     }
     .guild-card:hover {
       transform: translateY(-2px);
       border-color: var(--border-strong);
+      box-shadow: 0 10px 22px rgba(0,0,0,0.2);
     }
     .guild-card.active {
       border-color: var(--accent);
       box-shadow: 0 0 0 2px rgba(88,101,242,0.3);
     }
+    .guild-card-top {
+      display: flex;
+      gap: 0.85rem;
+      align-items: flex-start;
+      min-width: 0;
+    }
     .guild-icon {
-      width: 48px; height: 48px; border-radius: 12px;
+      width: 52px; height: 52px; border-radius: 14px;
       background: var(--surface-2);
       display: flex; align-items: center; justify-content: center;
       font-weight: 700; color: var(--muted); flex-shrink: 0;
+      overflow: hidden;
     }
-    .guild-icon img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+    .guild-icon img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; display: block; }
     .guild-meta-text { min-width: 0; flex: 1; }
-    .guild-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .guild-meta { color: var(--muted); font-size: 0.8rem; margin-top: 0.15rem; }
+    .guild-name {
+      font-weight: 700;
+      font-size: 0.98rem;
+      line-height: 1.2;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      max-width: 100%;
+    }
+    .guild-meta { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
     .badge {
       display: inline-block;
       padding: 0.1rem 0.5rem;
@@ -118,21 +140,161 @@
       margin-left: 0.35rem;
     }
     .badge.owner { background: rgba(250,166,26,0.2); color: var(--warn); }
+    .badge.admin { background: rgba(88,101,242,0.18); color: #cfd4ff; }
+    .badge.installed { background: rgba(59,165,93,0.18); color: #93e0ae; }
+    .badge.invite { background: rgba(250,166,26,0.18); color: var(--warn); }
+    .badge.bot-owner { background: rgba(237,66,69,0.18); color: #f4a3a5; }
 
-    .dashboard {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 2rem;
-      margin-top: 1rem;
+    .portal-toolbar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
     }
-    .dashboard h2 {
+    .toolbar-control {
+      min-width: 180px;
+      max-width: 240px;
+      width: 100%;
+    }
+    .toolbar-label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 0.35rem;
+    }
+    .guild-section {
+      margin-bottom: 2rem;
+    }
+    .guild-section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .guild-section h2 {
+      font-size: 1.05rem;
+      margin: 0;
+      color: #fff;
+    }
+    .section-copy {
+      color: var(--muted);
+      margin: 0.25rem 0 0;
+      font-size: 0.85rem;
+    }
+    .section-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2rem;
+      height: 2rem;
+      padding: 0 0.6rem;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .guild-card.inviteable {
+      cursor: pointer;
+    }
+    .guild-note {
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-top: 0.2rem;
+    }
+    .guild-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.45rem;
+    }
+    .guild-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-top: auto;
+      flex-wrap: wrap;
+    }
+    .card-action-hint {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    .card-action-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.74rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* Dashboard Overlay */
+    .dashboard-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+      z-index: 100;
+      backdrop-filter: blur(6px);
+    }
+    .dashboard-modal {
+      width: min(800px, 100%);
+      max-height: 90vh;
+      overflow-y: auto;
+      background: #111;
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      padding: 2rem;
+      position: relative;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+    }
+    .dashboard-modal::-webkit-scrollbar { width: 8px; }
+    .dashboard-modal::-webkit-scrollbar-track { background: transparent; }
+    .dashboard-modal::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+    .dashboard-modal::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+    
+    .dashboard-modal h2 {
       font-size: 1.25rem;
       margin: 0 0 1.5rem;
       padding-bottom: 0.75rem;
       border-bottom: 1px solid var(--border);
       display: flex; justify-content: space-between; align-items: center;
     }
+    .close-dashboard {
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .close-dashboard:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: rgba(237, 66, 69, 0.1);
+    }
+
     .section { margin-bottom: 2.5rem; }
     .section h3 { font-size: 1rem; margin: 0 0 0.9rem; color: #fff; }
     .section p.hint { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.9rem; }
@@ -171,12 +333,16 @@
     select, input[type="text"] {
       width: 100%;
       padding: 0.6rem 0.8rem;
-      background: var(--surface-2);
+      background: #111111;
       border: 1px solid var(--border);
       border-radius: 8px;
       color: var(--text);
       font-size: 0.95rem;
       font-family: inherit;
+    }
+    select option {
+      background: #111111;
+      color: var(--text);
     }
     select:focus, input:focus { outline: none; border-color: var(--accent); }
 
@@ -218,7 +384,7 @@
 
     .save-bar {
       position: sticky;
-      bottom: 1rem;
+      bottom: -1rem; /* stick to bottom of scroll container */
       margin-top: 2rem;
       padding: 1rem;
       background: rgba(10,10,10,0.95);
@@ -226,9 +392,77 @@
       border-radius: 10px;
       display: flex; justify-content: space-between; align-items: center;
       backdrop-filter: blur(10px);
-      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.6);
+      z-index: 20;
     }
     .save-bar.hidden { display: none; }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+      z-index: 50;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      width: min(560px, 100%);
+      background: #111;
+      border: 1px solid var(--border-strong);
+      border-radius: 18px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+      overflow: hidden;
+    }
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1.1rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-title-row {
+      display: flex;
+      gap: 0.85rem;
+      align-items: center;
+      min-width: 0;
+    }
+    .modal-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--surface-2);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .modal-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .modal-title { font-size: 1.05rem; font-weight: 700; line-height: 1.2; word-break: break-word; }
+    .modal-subtitle { color: var(--muted); font-size: 0.85rem; margin-top: 0.15rem; }
+    .modal-body { padding: 1.2rem; }
+    .modal-body p { margin: 0 0 0.9rem; color: var(--muted); }
+    .modal-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0 1rem; }
+    .modal-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem; }
+    .modal-close {
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .modal-close:hover { border-color: var(--accent); }
 
     .status-msg {
       padding: 0.75rem 1rem;
@@ -273,9 +507,28 @@
     .discord-btn:hover { opacity: 0.9; text-decoration: none; }
 
     @media (max-width: 640px) {
+      .guild-card { min-height: 0; }
+      .modal { width: 100%; }
+      .modal-head { padding: 1rem; }
+      .modal-body { padding: 1rem; }
+      .modal-actions { justify-content: stretch; }
+      .modal-actions .btn, .modal-actions .btn-secondary, .modal-actions a { width: 100%; }
+      .guild-name { font-size: 0.94rem; }
+      .guild-actions { align-items: flex-start; }
+      .card-action-chip { font-size: 0.7rem; }
       header.portal-header { padding: 1rem; }
       main { padding: 1.25rem; }
-      .dashboard { padding: 1.25rem; }
+      
+      .dashboard-modal-overlay { padding: 0; }
+      .dashboard-modal { 
+        width: 100%; 
+        height: 100%; 
+        max-height: 100vh; 
+        border-radius: 0; 
+        padding: 1.25rem;
+      }
+      .dashboard-modal h2 { font-size: 1.1rem; }
+      
       .user-name { display: none; }
     }
   </style>
@@ -297,17 +550,25 @@
   </div>
 </main>
 
+<div id="guild-modal-root"></div>
+<div id="dashboard-modal-root"></div>
+
 <script>
   const OAUTH_CONFIGURED = %%OAUTH_CONFIGURED%%;
   const BASE_URL = "%%SITE_BASE_URL%%";
+  const BOT_INVITE_URL = "%%BOT_INVITE%%";
 
   const state = {
     user: null,
-    guilds: [],
+    manageableGuilds: [],
+    inviteableGuilds: [],
     guildsLoaded: false,
     currentGuildId: null,
     currentConfig: null,
     pendingPatch: {},
+    sortMode: 'member_count',
+    isBotOwner: false,
+    modalGuild: null,
   };
 
   const el = (id) => document.getElementById(id);
@@ -316,6 +577,191 @@
     return String(s || '').replace(/[&<>"']/g, (c) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     })[c]);
+  }
+
+  function getGuildById(guildId) {
+    return [...(state.manageableGuilds || []), ...(state.inviteableGuilds || [])]
+      .find((g) => String(g.id) === String(guildId)) || null;
+  }
+
+  function sortGuilds(list, mode = 'member_count') {
+    const items = Array.isArray(list) ? list.slice() : [];
+    const nameSort = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+    items.sort((a, b) => {
+      if (mode === 'activity') {
+        const activityDiff = (Number(b.activityCount || 0) - Number(a.activityCount || 0));
+        if (activityDiff) { return activityDiff; }
+        const memberDiff = (Number(b.memberCount || 0) - Number(a.memberCount || 0));
+        if (memberDiff) { return memberDiff; }
+        return nameSort(a, b);
+      }
+      const memberDiff = (Number(b.memberCount || 0) - Number(a.memberCount || 0));
+      if (memberDiff) { return memberDiff; }
+      const activityDiff = (Number(b.activityCount || 0) - Number(a.activityCount || 0));
+      if (activityDiff) { return activityDiff; }
+      return nameSort(a, b);
+    });
+    return items;
+  }
+
+  function renderGuildCard(g, { inviteable = false } = {}) {
+    const icon = g.icon
+      ? `<img src="${escapeHtml(g.icon)}" alt="" loading="lazy" decoding="async">`
+      : escapeHtml((g.name || '?').charAt(0).toUpperCase());
+    const memberCount = Number(g.memberCount || 0).toLocaleString();
+    const activityCount = Number(g.activityCount || 0).toLocaleString();
+    const subtitleBits = [`${memberCount} members`];
+    if (Number(g.activityCount || 0) > 0) {
+      subtitleBits.push(`${activityCount} active`);
+    }
+    const subtitle = subtitleBits.join(' • ');
+    const badges = [
+      g.installed ? '<span class="badge installed">Installed</span>' : '<span class="badge invite">Not installed</span>',
+      g.youAreOwner ? '<span class="badge owner">Owner</span>' : '',
+      (!g.youAreOwner && g.youAreAdmin) ? '<span class="badge admin">Admin</span>' : '',
+      (state.isBotOwner && g.installed) ? '<span class="badge bot-owner">Bot owner</span>' : '',
+      g.botHasAdmin ? '<span class="badge">Bot admin</span>' : (!inviteable && g.installed ? '<span class="badge">No Admin</span>' : ''),
+    ].filter(Boolean).join('');
+    const actionHint = inviteable ? 'Open invite details' : 'Open server controls';
+    const actionChip = inviteable ? 'Invite available' : 'Manage server';
+    return `
+      <div class="guild-card ${state.currentGuildId === g.id ? 'active' : ''} ${inviteable ? 'inviteable' : ''}"
+           data-guild-id="${escapeHtml(g.id)}"
+           data-inviteable="${inviteable ? '1' : '0'}">
+        <div class="guild-card-top">
+          <div class="guild-icon">${icon}</div>
+          <div class="guild-meta-text">
+            <div class="guild-name">${escapeHtml(g.name)}</div>
+            <div class="guild-meta">${subtitle}</div>
+            ${g.installed ? '' : '<div class="guild-note">Jarvis is not installed here yet.</div>'}
+            <div class="guild-badges">${badges}</div>
+          </div>
+        </div>
+        <div class="guild-actions">
+          <span class="card-action-hint">${escapeHtml(actionHint)}</span>
+          <span class="card-action-chip">${escapeHtml(actionChip)}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderGuildSection(title, subtitle, guilds, inviteable = false) {
+    return `
+      <section class="guild-section">
+        <div class="guild-section-head">
+          <div>
+            <h2>${escapeHtml(title)}</h2>
+            <p class="section-copy">${escapeHtml(subtitle)}</p>
+          </div>
+          <div class="section-pill">${guilds.length}</div>
+        </div>
+        <div class="guild-grid">
+          ${guilds.map((g) => renderGuildCard(g, { inviteable })).join('')}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderGuildModal() {
+    const root = el('guild-modal-root');
+    if (!root) { return; }
+    const modal = state.modalGuild;
+    if (!modal) {
+      root.innerHTML = '';
+      return;
+    }
+    const icon = modal.icon
+      ? `<img src="${escapeHtml(modal.icon)}" alt="" loading="lazy" decoding="async">`
+      : escapeHtml((modal.name || '?').charAt(0).toUpperCase());
+    const memberCount = Number(modal.memberCount || 0).toLocaleString();
+    const activityCount = Number(modal.activityCount || 0).toLocaleString();
+    const inviteUrl = escapeHtml(modal.inviteUrl || BOT_INVITE_URL || '%%DISCORD_INVITE%%' || '#');
+    const canInvite = Boolean(modal.canInvite);
+    const badgeHtml = [
+      modal.installed ? '<span class="badge installed">Installed</span>' : '<span class="badge invite">Not installed</span>',
+      modal.youAreOwner ? '<span class="badge owner">Owner</span>' : '',
+      (!modal.youAreOwner && modal.youAreAdmin) ? '<span class="badge admin">Admin</span>' : '',
+      (state.isBotOwner && modal.installed) ? '<span class="badge bot-owner">Bot owner</span>' : '',
+      modal.botHasAdmin ? '<span class="badge">Bot admin</span>' : (!modal.installed ? '<span class="badge">No Admin</span>' : ''),
+    ].filter(Boolean).join('');
+    const primaryAction = modal.installed
+      ? `<button class="btn" id="modal-open-config-btn" type="button">Open config</button>`
+      : canInvite
+        ? `<a class="btn" href="${inviteUrl}" target="_blank" rel="noopener noreferrer">Invite Jarvis</a>`
+        : `<span class="btn" style="opacity:0.5;pointer-events:none;">Invite unavailable</span>`;
+    const secondaryAction = modal.installed
+      ? `<a class="btn-secondary btn" href="#" id="modal-close-and-open">Open and close</a>`
+      : `<button class="btn-secondary btn" id="modal-close-btn-2" type="button">Close</button>`;
+    root.innerHTML = `
+      <div class="modal-overlay" id="guild-modal-overlay" role="presentation">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="guild-modal-title">
+          <div class="modal-head">
+            <div class="modal-title-row">
+              <div class="modal-icon">${icon}</div>
+              <div style="min-width:0;">
+                <div class="modal-title" id="guild-modal-title">${escapeHtml(modal.name)}</div>
+                <div class="modal-subtitle">${escapeHtml(memberCount)} members${Number(modal.activityCount || 0) > 0 ? ` • ${escapeHtml(activityCount)} active` : ''}</div>
+              </div>
+            </div>
+            <button class="modal-close" id="modal-close-btn" type="button" aria-label="Close">×</button>
+          </div>
+          <div class="modal-body">
+            <p>${modal.installed
+              ? 'Jarvis is already installed here. Open the config without hunting through the page.'
+              : 'Jarvis is not installed here yet. Use the invite action only when you actually have owner or admin access.'}</p>
+            <div class="modal-badges">${badgeHtml}</div>
+            <div class="modal-actions">
+              ${secondaryAction}
+              ${primaryAction}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    const overlay = el('guild-modal-overlay');
+    overlay?.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        closeGuildModal();
+      }
+    });
+    el('modal-close-btn')?.addEventListener('click', closeGuildModal);
+    el('modal-close-btn-2')?.addEventListener('click', closeGuildModal);
+    el('modal-open-config-btn')?.addEventListener('click', async () => {
+      const gid = modal.id;
+      closeGuildModal();
+      await selectGuild(gid);
+    });
+    el('modal-close-and-open')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const gid = modal.id;
+      closeGuildModal();
+      await selectGuild(gid);
+    });
+  }
+
+  function openGuildModal(guildId) {
+    const guild = getGuildById(guildId);
+    if (!guild) { return; }
+    state.modalGuild = guild;
+    renderApp();
+  }
+
+  function closeGuildModal() {
+    if (!state.modalGuild) { return; }
+    state.modalGuild = null;
+    renderApp();
+  }
+
+  function closeDashboard() {
+    if (Object.keys(state.pendingPatch || {}).length > 0) {
+      if (!confirm('You have unsaved changes. Are you sure you want to discard them and close?')) {
+        return;
+      }
+    }
+    state.currentGuildId = null;
+    state.currentConfig = null;
+    state.pendingPatch = {};
+    renderApp();
   }
 
   async function apiFetch(url, options = {}) {
@@ -356,10 +802,11 @@
       return;
     }
     const name = state.user.globalName || state.user.username;
+    const ownerBadge = state.isBotOwner ? ' <span class="badge bot-owner">Bot owner</span>' : '';
     el('user-widget').innerHTML = `
       <img src="${escapeHtml(state.user.avatarUrl)}" alt="avatar" loading="lazy">
       <div>
-        <div class="user-name">${escapeHtml(name)}</div>
+        <div class="user-name">${escapeHtml(name)}${ownerBadge}</div>
         <div class="user-handle">@${escapeHtml(state.user.username)}</div>
       </div>
       <button class="logout-btn" id="logout-btn">Log out</button>
@@ -371,125 +818,177 @@
   }
 
   function renderGuildList() {
+    const managed = sortGuilds((state.manageableGuilds || []).filter((g) => g.installed), state.sortMode);
+    const inviteable = sortGuilds((state.inviteableGuilds || []).filter((g) => g.canInvite !== false), state.sortMode);
+
     if (!state.guildsLoaded) {
       return `
-        <h1>Your servers</h1>
-        <p class="subtitle">Looking up servers where you can manage Jarvis…</p>
+        <div class="portal-toolbar">
+          <div>
+            <h1>Your servers</h1>
+            <p class="subtitle">Looking up servers where you can manage Jarvis…</p>
+          </div>
+        </div>
         <div class="loading">Loading servers…</div>
       `;
     }
-    if (!state.guilds.length) {
+
+    if (!managed.length && !inviteable.length) {
       return `
         <div class="empty-state">
-          <h2>No servers to manage</h2>
-          <p>You need to be a server owner or moderator of a server where Jarvis is installed.</p>
-          <p style="margin-top: 1rem;"><a href="%%DISCORD_INVITE%%">Join the support server</a> if you need help.</p>
+          <h2>No servers to show</h2>
+          <p>${state.isBotOwner
+            ? 'Jarvis is not in any servers yet, or your bot cache is still warming up.'
+            : 'You need to own or administer a server where Jarvis is installed.'}</p>
+          <p style="margin-top: 1rem;">
+            <a href="${escapeHtml(BOT_INVITE_URL || '%%DISCORD_INVITE%%')}">Invite Jarvis</a>
+            to a server you control.
+          </p>
         </div>
       `;
     }
+
     return `
-      <h1>Your servers</h1>
-      <p class="subtitle">Select a server to manage its Jarvis configuration.</p>
-      <div class="guild-grid">
-        ${state.guilds.map((g) => `
-          <div class="guild-card ${state.currentGuildId === g.id ? 'active' : ''}" data-guild-id="${g.id}">
-            <div class="guild-icon">${g.icon
-              ? `<img src="${escapeHtml(g.icon)}" alt="" loading="lazy">`
-              : escapeHtml((g.name || '?').charAt(0).toUpperCase())
-            }</div>
-            <div class="guild-meta-text">
-              <div class="guild-name">${escapeHtml(g.name)}</div>
-              <div class="guild-meta">
-                ${Number(g.memberCount || 0).toLocaleString()} members
-                ${g.youAreOwner ? '<span class="badge owner">Owner</span>' : ''}
-                ${g.botHasAdmin ? '' : '<span class="badge">No Admin</span>'}
-              </div>
-            </div>
-          </div>
-        `).join('')}
+      <div class="portal-toolbar">
+        <div>
+          <h1>Your servers</h1>
+          <p class="subtitle">${state.isBotOwner
+            ? 'Owner mode: every guild Jarvis is in is visible here.'
+            : 'Only servers you own or administer, where Jarvis is installed or can be invited, are shown here.'}</p>
+        </div>
+        <div class="toolbar-control">
+          <label for="sort-select" class="toolbar-label">Sort by</label>
+          <select id="sort-select">
+            <option value="member_count" ${state.sortMode === 'member_count' ? 'selected' : ''}>Member count</option>
+            <option value="activity" ${state.sortMode === 'activity' ? 'selected' : ''}>Activity</option>
+          </select>
+        </div>
       </div>
-      <div id="dashboard-container"></div>
+      ${managed.length ? renderGuildSection('Installed servers', 'Servers where Jarvis is already installed and you can manage it.', managed, false) : ''}
+      ${inviteable.length ? renderGuildSection('Invite Jarvis', 'Servers you own or administer where Jarvis is not installed yet.', inviteable, true) : ''}
     `;
   }
 
-  function renderDashboard() {
+  function renderDashboardOverlay() {
+    if (!state.currentGuildId) return '';
+    const guild = getGuildById(state.currentGuildId);
     const cfg = state.currentConfig;
-    if (!cfg) {return '';}
-    const guild = state.guilds.find((g) => g.id === state.currentGuildId);
+
+    if (!cfg) {
+      return `
+        <div class="dashboard-modal-overlay" id="dash-overlay">
+          <div class="dashboard-modal">
+            <h2>
+              <span style="display:flex; align-items:center; gap: 10px;">
+                ⚙️ ${escapeHtml(guild?.name || 'Server')}
+              </span>
+              <button class="close-dashboard" id="close-dash-btn" aria-label="Close">×</button>
+            </h2>
+            <div id="status-area"></div>
+            <div class="loading">Loading server config…</div>
+          </div>
+        </div>
+      `;
+    }
+
     const features = cfg.features || {};
     const channels = cfg.channels || [];
     const roles = cfg.roles || [];
     return `
-      <div class="dashboard">
-        <h2>
-          <span>⚙️ ${escapeHtml(guild?.name || 'Server')} — Configuration</span>
-          <button class="btn-secondary btn" id="reload-config-btn">↻ Reload</button>
-        </h2>
+      <div class="dashboard-modal-overlay" id="dash-overlay">
+        <div class="dashboard-modal">
+          <h2>
+            <span style="display:flex; align-items:center; gap: 10px;">
+              ⚙️ ${escapeHtml(guild?.name || 'Server')} — Configuration
+            </span>
+            <div style="display:flex; align-items:center; gap: 8px;">
+              <button class="btn-secondary btn" id="reload-config-btn" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">↻ Reload</button>
+              <button class="close-dashboard" id="close-dash-btn" aria-label="Close">×</button>
+            </div>
+          </h2>
 
-        <div id="status-area"></div>
+          <div id="status-area"></div>
 
-        <div class="section">
-          <h3>Feature modules</h3>
-          <p class="hint">Enable or disable Jarvis modules for this server. Changes apply immediately after saving.</p>
-          <div class="feature-grid">
-            ${Object.entries(features).map(([key, enabled]) => `
-              <div class="feature-toggle">
-                <label for="feat-${escapeHtml(key)}">${escapeHtml(key)}</label>
-                <label class="switch">
-                  <input type="checkbox" id="feat-${escapeHtml(key)}" data-feature="${escapeHtml(key)}" ${enabled ? 'checked' : ''}>
-                  <span class="slider"></span>
-                </label>
-              </div>
-            `).join('')}
+          <div class="section">
+            <h3>Feature modules</h3>
+            <p class="hint">Enable or disable Jarvis modules for this server. Changes apply immediately after saving.</p>
+            <div class="feature-grid">
+              ${Object.entries(features).map(([key, enabled]) => `
+                <div class="feature-toggle">
+                  <label for="feat-${escapeHtml(key)}">${escapeHtml(key)}</label>
+                  <label class="switch">
+                    <input type="checkbox" id="feat-${escapeHtml(key)}" data-feature="${escapeHtml(key)}" ${enabled ? 'checked' : ''}>
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              `).join('')}
+            </div>
           </div>
-        </div>
 
-        <div class="section">
-          <h3>AI chat channel</h3>
-          <p class="hint">Restrict Jarvis chat replies to one channel. Leave empty to allow in any channel Jarvis can see.</p>
-          <select id="ai-channel-select">
-            <option value="">No restriction</option>
-            ${channels.map((c) => `
-              <option value="${escapeHtml(c.id)}" ${cfg.aiChannelId === c.id ? 'selected' : ''}>#${escapeHtml(c.name)}</option>
-            `).join('')}
-          </select>
-        </div>
-
-        <div class="section">
-          <h3>Moderator roles</h3>
-          <p class="hint">Members with these roles can run moderation commands and edit server config.</p>
-          <select id="moderator-role-select">
-            <option value="">Add a role…</option>
-            ${roles.map((r) => `
-              <option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>
-            `).join('')}
-          </select>
-          <div id="moderator-role-chips" style="margin-top: 0.6rem;">
-            ${(cfg.moderatorRoleIds || []).map((id) => {
-              const role = roles.find((r) => r.id === id);
-              return `<span class="chip" data-role-id="${escapeHtml(id)}">${escapeHtml(role?.name || id)} <button type="button">×</button></span>`;
-            }).join('')}
+          <div class="section">
+            <h3>AI chat channel</h3>
+            <p class="hint">Restrict Jarvis chat replies to one channel. Leave empty to allow in any channel Jarvis can see.</p>
+            <select id="ai-channel-select">
+              <option value="">No restriction</option>
+              ${channels.map((c) => `
+                <option value="${escapeHtml(c.id)}" ${cfg.aiChannelId === c.id ? 'selected' : ''}>#${escapeHtml(c.name)}</option>
+              `).join('')}
+            </select>
           </div>
-        </div>
 
-        <div class="section">
-          <h3>Wake word</h3>
-          <p class="hint">Custom word that wakes Jarvis in voice chat, or disable wake words entirely.</p>
-          <input type="text" id="wake-word-input" placeholder="jarvis" value="${escapeHtml(cfg.customWakeWord || '')}" maxlength="32">
-          <div class="feature-toggle" style="margin-top: 0.75rem;">
-            <label for="wake-disabled-toggle">Disable wake words entirely</label>
-            <label class="switch">
-              <input type="checkbox" id="wake-disabled-toggle" ${cfg.wakeWordsDisabled ? 'checked' : ''}>
-              <span class="slider"></span>
-            </label>
+          <div class="section">
+            <h3>Moderator roles</h3>
+            <p class="hint">Members with these roles can run moderation commands and edit server config.</p>
+            <select id="moderator-role-select">
+              <option value="">Add a role…</option>
+              ${roles.map((r) => `
+                <option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>
+              `).join('')}
+            </select>
+            <div id="moderator-role-chips" style="margin-top: 0.6rem;">
+              ${(cfg.moderatorRoleIds || []).map((id) => {
+                const role = roles.find((r) => r.id === id);
+                return `<span class="chip" data-role-id="${escapeHtml(id)}">${escapeHtml(role?.name || id)} <button type="button">×</button></span>`;
+              }).join('')}
+            </div>
           </div>
-        </div>
 
-        <div class="save-bar hidden" id="save-bar">
-          <span id="save-bar-status">You have unsaved changes.</span>
-          <div>
-            <button class="btn-secondary btn" id="discard-btn">Discard</button>
-            <button class="btn" id="save-btn">Save changes</button>
+          <div class="section">
+            <h3>AI role blacklist</h3>
+            <p class="hint">Members with these roles cannot trigger Jarvis AI chat (mentions, replies, wake-words). Slash commands are not affected.</p>
+            <select id="ai-role-blacklist-select">
+              <option value="">Add a role…</option>
+              ${roles.map((r) => `
+                <option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>
+              `).join('')}
+            </select>
+            <div id="ai-role-blacklist-chips" style="margin-top: 0.6rem;">
+              ${(cfg.blockedAiRoleIds || []).map((id) => {
+                const role = roles.find((r) => r.id === id);
+                return `<span class="chip" data-blacklist-role-id="${escapeHtml(id)}">${escapeHtml(role?.name || id)} <button type="button">×</button></span>`;
+              }).join('')}
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Wake word</h3>
+            <p class="hint">Custom word that wakes Jarvis in voice chat, or disable wake words entirely.</p>
+            <input type="text" id="wake-word-input" placeholder="jarvis" value="${escapeHtml(cfg.customWakeWord || '')}" maxlength="32">
+            <div class="feature-toggle" style="margin-top: 0.75rem;">
+              <label for="wake-disabled-toggle">Disable wake words entirely</label>
+              <label class="switch">
+                <input type="checkbox" id="wake-disabled-toggle" ${cfg.wakeWordsDisabled ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="save-bar hidden" id="save-bar">
+            <span id="save-bar-status">You have unsaved changes.</span>
+            <div>
+              <button class="btn-secondary btn" id="discard-btn">Discard</button>
+              <button class="btn" id="save-btn">Save changes</button>
+            </div>
           </div>
         </div>
       </div>
@@ -497,6 +996,16 @@
   }
 
   function wireDashboardEvents() {
+    // Overlay close buttons
+    el('close-dash-btn')?.addEventListener('click', closeDashboard);
+    el('dash-overlay')?.addEventListener('click', (e) => {
+      if (e.target.id === 'dash-overlay') {
+        closeDashboard();
+      }
+    });
+
+    if (!state.currentConfig) return; // Skip if config is still loading
+
     // Feature toggles
     document.querySelectorAll('[data-feature]').forEach((el) => {
       el.addEventListener('change', () => {
@@ -540,6 +1049,34 @@
       toggleSaveBar();
     });
 
+    // AI role blacklist add
+    el('ai-role-blacklist-select')?.addEventListener('change', (e) => {
+      const roleId = e.target.value;
+      if (!roleId) {return;}
+      const current = (state.pendingPatch.blockedAiRoleIds || state.currentConfig.blockedAiRoleIds || []).slice();
+      if (current.includes(roleId)) {
+        e.target.value = '';
+        return;
+      }
+      current.push(roleId);
+      state.pendingPatch.blockedAiRoleIds = current;
+      rerenderBlacklistChips();
+      e.target.value = '';
+      toggleSaveBar();
+    });
+
+    // AI role blacklist remove
+    el('ai-role-blacklist-chips')?.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') {return;}
+      const chip = e.target.closest('.chip');
+      if (!chip) {return;}
+      const roleId = chip.dataset.blacklistRoleId;
+      const current = (state.pendingPatch.blockedAiRoleIds || state.currentConfig.blockedAiRoleIds || []).slice();
+      state.pendingPatch.blockedAiRoleIds = current.filter((id) => id !== roleId);
+      rerenderBlacklistChips();
+      toggleSaveBar();
+    });
+
     // Wake word
     el('wake-word-input')?.addEventListener('input', (e) => {
       state.pendingPatch.customWakeWord = e.target.value.trim() || null;
@@ -557,6 +1094,17 @@
       renderApp();
     });
     el('reload-config-btn')?.addEventListener('click', () => selectGuild(state.currentGuildId, true));
+  }
+
+  function rerenderBlacklistChips() {
+    const container = el('ai-role-blacklist-chips');
+    if (!container) {return;}
+    const ids = state.pendingPatch.blockedAiRoleIds || state.currentConfig.blockedAiRoleIds || [];
+    const roles = state.currentConfig.roles || [];
+    container.innerHTML = ids.map((id) => {
+      const role = roles.find((r) => r.id === id);
+      return `<span class="chip" data-blacklist-role-id="${escapeHtml(id)}">${escapeHtml(role?.name || id)} <button type="button">×</button></span>`;
+    }).join('');
   }
 
   function rerenderModeratorChips() {
@@ -600,8 +1148,10 @@
     } catch (error) {
       setStatus(error.message || 'Save failed', 'error');
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Save changes';
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Save changes';
+      }
     }
   }
 
@@ -610,10 +1160,10 @@
     state.currentGuildId = guildId;
     state.currentConfig = null;
     state.pendingPatch = {};
-    renderApp();
+    renderApp(); // shows loading overlay
     try {
       state.currentConfig = await apiFetch(`/portal/api/guilds/${guildId}/config`);
-      renderApp();
+      renderApp(); // replaces loading with config
     } catch (error) {
       setStatus(error.message || 'Failed to load guild config', 'error');
     }
@@ -623,33 +1173,45 @@
     if (!state.user) {
       renderLogin();
       renderUserWidget();
+      renderGuildModal();
+      document.body.style.overflow = '';
       return;
     }
 
-    let html = renderGuildList();
-    el('app').innerHTML = html;
+    el('app').innerHTML = renderGuildList();
 
-    // Attach guild-card click handlers
+    const sortSelect = el('sort-select');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        state.sortMode = e.target.value || 'member_count';
+        renderApp();
+      });
+    }
+
     document.querySelectorAll('.guild-card').forEach((card) => {
-      card.addEventListener('click', () => selectGuild(card.dataset.guildId));
+      card.addEventListener('click', () => {
+        const guildId = card.dataset.guildId;
+        if (guildId) {
+          openGuildModal(guildId);
+        }
+      });
     });
 
+    const dashRoot = el('dashboard-modal-root');
     if (state.currentGuildId) {
-      const container = el('dashboard-container');
-      if (state.currentConfig) {
-        container.innerHTML = renderDashboard();
-        wireDashboardEvents();
-      } else {
-        container.innerHTML = `<div class="loading">Loading server config…</div>`;
-      }
+      dashRoot.innerHTML = renderDashboardOverlay();
+      wireDashboardEvents();
+    } else {
+      dashRoot.innerHTML = '';
     }
 
     renderUserWidget();
+    renderGuildModal();
+    // lock body scrolling if any modal is open
+    document.body.style.overflow = (state.modalGuild || state.currentGuildId) ? 'hidden' : '';
   }
 
   async function bootstrap() {
-    // Step 1: get the user immediately from the lightweight endpoint so the
-    // header, avatar and "Your servers" shell render straight away (#271).
     try {
       const userRes = await apiFetch('/portal/api/user');
       state.user = userRes.user;
@@ -660,14 +1222,15 @@
     }
     renderApp();
 
-    // Step 2: load guilds in the background. Manage-able guilds appear when
-    // the API responds; never block the initial paint on it.
     try {
       const me = await apiFetch('/portal/api/me');
-      state.guilds = me.manageableGuilds || [];
+      state.manageableGuilds = me.manageableGuilds || [];
+      state.inviteableGuilds = me.inviteableGuilds || [];
+      state.isBotOwner = Boolean(me.isBotOwner);
     } catch (error) {
-      // Stay with the empty list rather than logging out.
-      state.guilds = [];
+      state.manageableGuilds = [];
+      state.inviteableGuilds = [];
+      state.isBotOwner = false;
     }
     state.guildsLoaded = true;
     renderApp();

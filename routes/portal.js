@@ -12,9 +12,10 @@
  *   GET  /portal/api/guilds/:gid/config     full config snapshot
  *   PATCH /portal/api/guilds/:gid/config    update config subset
  *
- * Authorization rules: only users the bot considers moderators may read or
- * mutate a guild's config. The API always revalidates on every request — we
- * never trust the OAuth guilds payload alone.
+ * Access rules:
+ *   - The bot owner can see and manage every guild the bot is in.
+ *   - Regular users can see guilds they own or administrate where Jarvis is installed.
+ *   - Direct config reads/writes still revalidate server-side.
  */
 
 const express = require('express');
@@ -27,6 +28,7 @@ const portalAuth = require('../src/services/portal-auth');
 const portalSessions = require('../src/services/portal-sessions');
 const { getPublicConfig } = require('../src/utils/public-config');
 const { PermissionsBitField } = require('discord.js');
+const { isOwner } = require('../src/utils/owner-check');
 
 const log = logger.child({ module: 'portal' });
 const router = express.Router();
@@ -58,35 +60,47 @@ const apiLimiter = rateLimit({
     legacyHeaders: false
 });
 
-// Per-user manageable-guild cache. Cuts per-request guild fetches that were
-// causing /portal/api/me to take "9291949219421949 years" and rate-limit the
-// bot (#271). Entries auto-expire and are also bumped via guild events.
 const GUILDS_CACHE_TTL_MS = Number(process.env.PORTAL_GUILDS_CACHE_TTL_MS) || 60_000;
-const _userGuildsCache = new Map(); // userId -> { at: number, guilds: Array }
+const _userPortalCache = new Map(); // userId -> { at, payload }
+const _userOAuthGuildsCache = new Map(); // userId -> { at, guilds }
 
-function _cachedGuildsFor(userId) {
-    const entry = _userGuildsCache.get(userId);
+function _cachedPortalPayloadFor(userId) {
+    const entry = _userPortalCache.get(userId);
     if (!entry) {return null;}
     if (Date.now() - entry.at > GUILDS_CACHE_TTL_MS) {
-        _userGuildsCache.delete(userId);
+        _userPortalCache.delete(userId);
+        return null;
+    }
+    return entry.payload;
+}
+
+function _setCachedPortalPayload(userId, payload) {
+    _userPortalCache.set(userId, { at: Date.now(), payload });
+}
+
+function _cachedOAuthGuildsFor(userId) {
+    const entry = _userOAuthGuildsCache.get(userId);
+    if (!entry) {return null;}
+    if (Date.now() - entry.at > GUILDS_CACHE_TTL_MS) {
+        _userOAuthGuildsCache.delete(userId);
         return null;
     }
     return entry.guilds;
 }
 
-function _setCachedGuilds(userId, guilds) {
-    _userGuildsCache.set(userId, { at: Date.now(), guilds });
+function _setCachedOAuthGuilds(userId, guilds) {
+    _userOAuthGuildsCache.set(userId, { at: Date.now(), guilds });
 }
 
 function invalidateUserGuildsCache(userId) {
     if (userId) {
-        _userGuildsCache.delete(userId);
+        _userPortalCache.delete(userId);
+        _userOAuthGuildsCache.delete(userId);
     } else {
-        _userGuildsCache.clear();
+        _userPortalCache.clear();
+        _userOAuthGuildsCache.clear();
     }
 }
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function cookieOptions() {
     return {
@@ -100,7 +114,6 @@ function cookieOptions() {
 
 function sanitizeReturnTo(raw) {
     if (typeof raw !== 'string') {return '/portal';}
-    // Only allow same-site absolute paths
     if (!raw.startsWith('/') || raw.startsWith('//')) {return '/portal';}
     if (raw.length > 200) {return '/portal';}
     return raw;
@@ -117,10 +130,197 @@ async function requireSession(req, res, next) {
     next();
 }
 
-/**
- * Resolves the full bot-side guild object the user is trying to manage, after
- * confirming the user is a moderator there. Responds with 403 otherwise.
- */
+function getOAuthGuildPermissions(oauthGuild) {
+    const raw = oauthGuild?.permissions;
+    if (raw === null || raw === undefined) {
+        return new PermissionsBitField(0);
+    }
+    try {
+        return new PermissionsBitField(BigInt(raw));
+    } catch {
+        try {
+            return new PermissionsBitField(raw);
+        } catch {
+            return new PermissionsBitField(0);
+        }
+    }
+}
+
+function oauthGuildHasAdminAccess(oauthGuild) {
+    if (!oauthGuild) {return false;}
+    const perms = getOAuthGuildPermissions(oauthGuild);
+    return Boolean(
+        oauthGuild.owner ||
+        perms.has(PermissionsBitField.Flags.Administrator)
+    );
+}
+
+function buildGuildIconUrl(guildId, iconHash) {
+    if (!guildId || !iconHash) {return null;}
+    const isAnimated = String(iconHash).startsWith('a_');
+    const ext = isAnimated ? 'gif' : 'png';
+    return `https://cdn.discordapp.com/icons/${guildId}/${iconHash}.${ext}?size=128`;
+}
+
+function normalizeGuildCounts(botGuild, oauthGuild) {
+    const memberCount = Number(
+        botGuild?.memberCount ??
+        oauthGuild?.approximate_member_count ??
+        oauthGuild?.approximateMemberCount ??
+        oauthGuild?.member_count ??
+        oauthGuild?.memberCount ??
+        0
+    ) || 0;
+
+    const activityCount = Number(
+        oauthGuild?.approximate_presence_count ??
+        oauthGuild?.approximatePresenceCount ??
+        oauthGuild?.presence_count ??
+        oauthGuild?.presenceCount ??
+        0
+    ) || 0;
+
+    return { memberCount, activityCount };
+}
+
+function buildGuildSummary({ botGuild = null, oauthGuild = null, botOwnerMode = false, userId = null, canManage = false, installed = Boolean(botGuild) }) {
+    const guildId = botGuild?.id || oauthGuild?.id || null;
+    const name = botGuild?.name || oauthGuild?.name || 'Unknown Server';
+    const iconHash = botGuild?.icon || oauthGuild?.icon || null;
+    const iconUrl = buildGuildIconUrl(guildId, iconHash);
+    const { memberCount, activityCount } = normalizeGuildCounts(botGuild, oauthGuild);
+    const botMe = botGuild?.members?.me || null;
+    const youAreOwner = Boolean(oauthGuild?.owner) || botGuild?.ownerId === userId;
+    const youAreAdmin = oauthGuildHasAdminAccess(oauthGuild);
+    const botHasAdmin = installed ? Boolean(botMe?.permissions?.has(PermissionsBitField.Flags.Administrator)) : false;
+
+    return {
+        id: guildId,
+        name,
+        icon: iconUrl,
+        memberCount,
+        activityCount,
+        installed,
+        botOwnerMode,
+        canManage: Boolean(canManage || botOwnerMode),
+        canInvite: !installed && Boolean(oauthGuild) && (botOwnerMode || oauthGuildHasAdminAccess(oauthGuild)),
+        inviteUrl: !installed ? (getPublicConfig().botInviteUrl || null) : null,
+        ownerId: botGuild?.ownerId || null,
+        youAreOwner,
+        youAreAdmin,
+        botHasAdmin
+    };
+}
+
+function sortGuilds(guilds, sortMode = 'member_count') {
+    const list = Array.isArray(guilds) ? guilds.slice() : [];
+    const nameSort = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+    list.sort((a, b) => {
+        if (sortMode === 'activity') {
+            const activityDiff = (b.activityCount || 0) - (a.activityCount || 0);
+            if (activityDiff) {return activityDiff;}
+            const memberDiff = (b.memberCount || 0) - (a.memberCount || 0);
+            if (memberDiff) {return memberDiff;}
+            return nameSort(a, b);
+        }
+        const memberDiff = (b.memberCount || 0) - (a.memberCount || 0);
+        if (memberDiff) {return memberDiff;}
+        const activityDiff = (b.activityCount || 0) - (a.activityCount || 0);
+        if (activityDiff) {return activityDiff;}
+        return nameSort(a, b);
+    });
+    return list;
+}
+
+async function getOAuthGuildsForSession(session, { forceRefresh = false } = {}) {
+    const cached = !forceRefresh ? _cachedOAuthGuildsFor(session.userId) : null;
+    if (cached) {return cached;}
+
+    const accessToken = session.discordAccessToken;
+    if (!accessToken) {return [];}
+
+    try {
+        const guilds = await portalAuth.fetchUserGuilds(accessToken, { withCounts: true });
+        _setCachedOAuthGuilds(session.userId, guilds);
+        return guilds;
+    } catch (error) {
+        const fallback = _cachedOAuthGuildsFor(session.userId);
+        if (fallback) {
+            log.warn('OAuth guild fetch failed, serving cached guild list', { userId: session.userId, err: error });
+            return fallback;
+        }
+        throw error;
+    }
+}
+
+async function buildPortalPayload(session, client) {
+    const botOwnerMode = isOwner(session.userId);
+    const user = {
+        id: session.userId,
+        username: session.username,
+        globalName: session.globalName || null,
+        avatarUrl: portalAuth.avatarUrlFor({
+            id: session.userId,
+            avatar: session.avatar
+        })
+    };
+
+    if (!client) {
+        return {
+            user,
+            manageableGuilds: [],
+            inviteableGuilds: [],
+            botReady: false,
+            isBotOwner: botOwnerMode
+        };
+    }
+
+    const oauthGuilds = await getOAuthGuildsForSession(session, { forceRefresh: true });
+    const oauthMap = new Map(oauthGuilds.map(g => [String(g.id), g]));
+    const botGuilds = [...client.guilds.cache.values()];
+    const botGuildIds = new Set(botGuilds.map(g => String(g.id)));
+
+    const manageableGuilds = [];
+    const inviteableGuilds = [];
+
+    for (const botGuild of botGuilds) {
+        const oauthGuild = oauthMap.get(String(botGuild.id)) || null;
+        const canManage = botOwnerMode || oauthGuildHasAdminAccess(oauthGuild);
+        if (botOwnerMode || canManage) {
+            manageableGuilds.push(buildGuildSummary({
+                botGuild,
+                oauthGuild,
+                botOwnerMode,
+                userId: session.userId,
+                canManage: true,
+                installed: true
+            }));
+        }
+    }
+
+    for (const oauthGuild of oauthGuilds) {
+        const guildId = String(oauthGuild.id);
+        if (botGuildIds.has(guildId)) {continue;}
+        if (!botOwnerMode && !oauthGuildHasAdminAccess(oauthGuild)) {continue;}
+        inviteableGuilds.push(buildGuildSummary({
+            botGuild: null,
+            oauthGuild,
+            botOwnerMode,
+            userId: session.userId,
+            canManage: false,
+            installed: false
+        }));
+    }
+
+    return {
+        user,
+        manageableGuilds: sortGuilds(manageableGuilds, 'member_count'),
+        inviteableGuilds: sortGuilds(inviteableGuilds, 'member_count'),
+        botReady: true,
+        isBotOwner: botOwnerMode
+    };
+}
+
 async function loadManageableGuild(req, res) {
     const client = _appContext?.getClient?.();
     if (!client) {
@@ -137,11 +337,32 @@ async function loadManageableGuild(req, res) {
         res.status(404).json({ error: 'Bot is not in that guild' });
         return null;
     }
-    const member = await guild.members.fetch(req.portalSession.userId).catch(() => null);
+
+    const session = req.portalSession;
+    if (isOwner(session.userId)) {
+        return { guild, member: null, oauthGuild: null, botOwnerMode: true };
+    }
+
+    const oauthGuilds = await getOAuthGuildsForSession(session).catch(() => []);
+    const oauthGuild = oauthGuilds.find(g => String(g.id) === guildId) || null;
+    const perms = oauthGuild ? getOAuthGuildPermissions(oauthGuild) : null;
+    const hasOAuthAccess = Boolean(
+        oauthGuild &&
+        (oauthGuild.owner ||
+         perms?.has(PermissionsBitField.Flags.Administrator))
+    );
+
+    if (hasOAuthAccess) {
+        const member = await guild.members.fetch(session.userId).catch(() => null);
+        return { guild, member, oauthGuild, botOwnerMode: false };
+    }
+
+    const member = await guild.members.fetch(session.userId).catch(() => null);
     if (!member) {
         res.status(403).json({ error: 'You are not a member of that guild' });
         return null;
     }
+
     const handler = _appContext?.getHandlers?.();
     if (!handler?.isGuildModerator) {
         res.status(500).json({ error: 'Moderator check handler missing' });
@@ -149,24 +370,10 @@ async function loadManageableGuild(req, res) {
     }
     const isModerator = await handler.isGuildModerator(member);
     if (!isModerator) {
-        res.status(403).json({ error: 'You are not a moderator of that guild' });
+        res.status(403).json({ error: 'You are not authorized to manage this guild' });
         return null;
     }
-    return { guild, member };
-}
-
-function buildGuildSummary(guild, member) {
-    const me = guild.members.me;
-    const iconUrl = typeof guild.iconURL === 'function' ? guild.iconURL({ size: 128 }) : null;
-    return {
-        id: guild.id,
-        name: guild.name,
-        icon: iconUrl,
-        memberCount: guild.memberCount,
-        ownerId: guild.ownerId,
-        youAreOwner: member ? member.id === guild.ownerId : false,
-        botHasAdmin: me?.permissions?.has(PermissionsBitField.Flags.Administrator) ?? false
-    };
+    return { guild, member, oauthGuild, botOwnerMode: false };
 }
 
 async function projectGuildConfig(guild) {
@@ -190,6 +397,7 @@ async function projectGuildConfig(guild) {
         djRoleIds: guildConfig?.djRoleIds || [],
         djUserIds: guildConfig?.djUserIds || [],
         blockedUserIds: guildConfig?.blockedUserIds || [],
+        blockedAiRoleIds: guildConfig?.blockedAiRoleIds || [],
         customWakeWord: guildConfig?.customWakeWord || null,
         wakeWordsDisabled: Boolean(guildConfig?.wakeWordsDisabled),
         automod: automod || null,
@@ -198,8 +406,6 @@ async function projectGuildConfig(guild) {
     };
 }
 
-// ─── SPA shell ──────────────────────────────────────────────────────────────
-
 router.get('/', (req, res) => {
     const publicConfig = getPublicConfig();
     const template = loadPortalTemplate();
@@ -207,11 +413,10 @@ router.get('/', (req, res) => {
         .replaceAll('%%SITE_BASE_URL%%', publicConfig.baseUrl || '')
         .replaceAll('%%GA_MEASUREMENT_ID%%', publicConfig.gaMeasurementId || '')
         .replaceAll('%%DISCORD_INVITE%%', publicConfig.discordInviteUrl || '#')
+        .replaceAll('%%BOT_INVITE%%', publicConfig.botInviteUrl || '#')
         .replaceAll('%%OAUTH_CONFIGURED%%', portalAuth.isConfigured() ? 'true' : 'false');
     res.type('html').send(html);
 });
-
-// ─── OAuth routes ───────────────────────────────────────────────────────────
 
 router.get('/login', oauthLimiter, (req, res) => {
     if (!portalAuth.isConfigured()) {
@@ -275,9 +480,6 @@ router.post('/logout', oauthLimiter, async(req, res) => {
     res.json({ ok: true });
 });
 
-// ─── API ────────────────────────────────────────────────────────────────────
-
-// Lightweight identity endpoint — no guild work, used by landing/nav (#271).
 router.get('/api/user', apiLimiter, requireSession, (req, res) => {
     const session = req.portalSession;
     res.json({
@@ -296,70 +498,39 @@ router.get('/api/user', apiLimiter, requireSession, (req, res) => {
 router.get('/api/me', apiLimiter, requireSession, async(req, res) => {
     const session = req.portalSession;
     const client = _appContext?.getClient?.();
-    const user = {
-        id: session.userId,
-        username: session.username,
-        globalName: session.globalName || null,
-        avatarUrl: portalAuth.avatarUrlFor({
+    const payload = {
+        user: {
             id: session.userId,
-            avatar: session.avatar
-        })
+            username: session.username,
+            globalName: session.globalName || null,
+            avatarUrl: portalAuth.avatarUrlFor({
+                id: session.userId,
+                avatar: session.avatar
+            })
+        }
     };
+
     if (!client) {
-        return res.json({ user, manageableGuilds: [], botReady: false });
+        return res.json({
+            ...payload,
+            manageableGuilds: [],
+            inviteableGuilds: [],
+            botReady: false,
+            isBotOwner: isOwner(session.userId)
+        });
     }
 
-    // Fast path: serve cached guilds and bail before any REST fetch (#271).
-    const cached = _cachedGuildsFor(session.userId);
-    if (cached) {
-        return res.json({ user, manageableGuilds: cached, botReady: true, cached: true });
+    try {
+        const fresh = await buildPortalPayload(session, client);
+        const response = {
+            ...payload,
+            ...fresh
+        };
+        res.json(response);
+    } catch (error) {
+        log.error('Failed to build portal guild payload', { err: error, userId: session.userId });
+        res.status(500).json({ error: 'Failed to load servers' });
     }
-
-    const handler = _appContext.getHandlers?.();
-    const allGuilds = [...client.guilds.cache.values()];
-
-    // Prefer guilds where the member is already cached so we never block on
-    // REST. Bound the number of REST fallbacks per request to avoid bot rate
-    // limits when a user is in many shared servers.
-    const cachedMemberGuilds = [];
-    const needsFetchGuilds = [];
-    for (const guild of allGuilds) {
-        if (guild.members.cache.has(session.userId)) {
-            cachedMemberGuilds.push(guild);
-        } else {
-            needsFetchGuilds.push(guild);
-        }
-    }
-
-    const MAX_MEMBER_FETCHES = Number(process.env.PORTAL_GUILDS_MAX_FETCHES) || 25;
-    const fetchTargets = needsFetchGuilds.slice(0, MAX_MEMBER_FETCHES);
-
-    const evaluate = async guild => {
-        try {
-            const member = guild.members.cache.get(session.userId)
-                ?? await guild.members.fetch(session.userId).catch(() => null);
-            if (!member) {return null;}
-            if (handler?.isGuildModerator && (await handler.isGuildModerator(member))) {
-                return buildGuildSummary(guild, member);
-            }
-        } catch (error) {
-            log.warn('me-api guild check failed', { guildId: guild.id, err: error });
-        }
-        return null;
-    };
-
-    const results = await Promise.all(
-        [...cachedMemberGuilds, ...fetchTargets].map(evaluate)
-    );
-    const manageableGuilds = results.filter(Boolean);
-    _setCachedGuilds(session.userId, manageableGuilds);
-
-    res.json({
-        user,
-        manageableGuilds,
-        botReady: true,
-        partial: needsFetchGuilds.length > fetchTargets.length
-    });
 });
 
 router.get('/api/guilds/:guildId/config', apiLimiter, requireSession, async(req, res) => {
@@ -396,6 +567,9 @@ router.patch('/api/guilds/:guildId/config', apiLimiter, requireSession, async(re
         if (Array.isArray(patch.djUserIds)) {
             tasks.push(database.setGuildDjUsers(guildId, patch.djUserIds));
         }
+        if (Array.isArray(patch.blockedAiRoleIds)) {
+            tasks.push(database.setGuildBlockedAiRoles(guildId, patch.blockedAiRoleIds));
+        }
         if (Object.prototype.hasOwnProperty.call(patch, 'aiChannelId')) {
             const channelId = patch.aiChannelId;
             if (channelId === null || channelId === '') {
@@ -420,6 +594,7 @@ router.patch('/api/guilds/:guildId/config', apiLimiter, requireSession, async(re
         }
 
         await Promise.all(tasks);
+        invalidateUserGuildsCache(req.portalSession.userId);
         const fresh = await projectGuildConfig(ctx.guild);
         log.info('Portal config updated', {
             guildId,

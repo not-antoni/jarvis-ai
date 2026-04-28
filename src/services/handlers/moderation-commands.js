@@ -1,6 +1,5 @@
 'use strict';
 
-const { EmbedBuilder } = require('discord.js');
 const logger = require('../../utils/logger');
 
 const log = logger.child({ module: 'moderation' });
@@ -112,17 +111,6 @@ function formatAuditReason(actor, reason) {
     return combined.slice(0, 512);
 }
 
-const BAN_GIFS = [
-    'https://media.tenor.com/vbgtgvSJ9KAAAAAC/banned-bye.gif',
-    'https://media.tenor.com/sKjH28TT25wAAAAC/banned-you-are-banned.gif',
-    'https://media.tenor.com/uEOhR1w3tmEAAAAC/banhammer-bonk.gif',
-    'https://media.tenor.com/qR4Q2nVLRCkAAAAC/get-out-bye.gif'
-];
-
-function pickBanGif() {
-    return BAN_GIFS[Math.floor(Math.random() * BAN_GIFS.length)];
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // /purge
 // ─────────────────────────────────────────────────────────────────────────────
@@ -226,17 +214,10 @@ async function handleTimeout(interaction, handler) {
             targetId: target.id,
             durationMs: ms
         });
-        const embed = new EmbedBuilder()
-            .setTitle('⏲️ Member Timed Out')
-            .setColor(0xffaa00)
-            .addFields(
-                { name: 'Member', value: `${target.user} (\`${target.id}\`)`, inline: false },
-                { name: 'Duration', value: formatDuration(ms), inline: true },
-                { name: 'Moderator', value: `${gate.member.user}`, inline: true },
-                { name: 'Reason', value: reason || '_No reason provided_', inline: false }
-            )
-            .setTimestamp();
-        await interaction.editReply({ embeds: [embed] });
+        const reasonText = reason ? ` — ${reason}` : '';
+        await interaction.editReply({
+            content: `⏲️ Timed out ${target.user} for **${formatDuration(ms)}**${reasonText}, sir.`
+        });
     } catch (error) {
         log.error('Timeout failed', { err: error, guildId: interaction.guildId });
         await interaction.editReply({
@@ -319,18 +300,10 @@ async function handleBan(interaction, handler) {
             targetId: targetUser.id,
             deleteDays
         });
-        const embed = new EmbedBuilder()
-            .setTitle('🔨 Member Banned')
-            .setColor(0xff4b4b)
-            .setImage(pickBanGif())
-            .addFields(
-                { name: 'Member', value: `${targetUser.tag || targetUser.username} (\`${targetUser.id}\`)`, inline: false },
-                { name: 'Moderator', value: `${gate.member.user}`, inline: true },
-                { name: 'Delete History', value: `${deleteDays} day${deleteDays === 1 ? '' : 's'}`, inline: true },
-                { name: 'Reason', value: reason || '_No reason provided_', inline: false }
-            )
-            .setTimestamp();
-        await interaction.editReply({ embeds: [embed] });
+        const reasonText = reason ? ` — ${reason}` : '';
+        await interaction.editReply({
+            content: `🔨 Banned **${targetUser.tag || targetUser.username}** (\`${targetUser.id}\`)${reasonText}, sir.`
+        });
     } catch (error) {
         log.error('Ban failed', { err: error, guildId: interaction.guildId });
         await interaction.editReply({
@@ -367,16 +340,10 @@ async function handleKick(interaction, handler) {
             actorId: gate.member.id,
             targetId: target.id
         });
-        const embed = new EmbedBuilder()
-            .setTitle('👢 Member Kicked')
-            .setColor(0xff9b3d)
-            .addFields(
-                { name: 'Member', value: `${target.user} (\`${target.id}\`)`, inline: false },
-                { name: 'Moderator', value: `${gate.member.user}`, inline: true },
-                { name: 'Reason', value: reason || '_No reason provided_', inline: false }
-            )
-            .setTimestamp();
-        await interaction.editReply({ embeds: [embed] });
+        const reasonText = reason ? ` — ${reason}` : '';
+        await interaction.editReply({
+            content: `👢 Kicked ${target.user}${reasonText}, sir.`
+        });
     } catch (error) {
         log.error('Kick failed', { err: error, guildId: interaction.guildId });
         await interaction.editReply({
@@ -426,16 +393,10 @@ async function handleUnban(interaction, handler) {
             targetId: userId
         });
         const tag = ban.user?.tag || ban.user?.username || userId;
-        const embed = new EmbedBuilder()
-            .setTitle('🕊️ Member Unbanned')
-            .setColor(0x57f287)
-            .addFields(
-                { name: 'User', value: `**${tag}** (\`${userId}\`)`, inline: false },
-                { name: 'Moderator', value: `${gate.member.user}`, inline: true },
-                { name: 'Reason', value: reason || '_No reason provided_', inline: false }
-            )
-            .setTimestamp();
-        await interaction.editReply({ embeds: [embed] });
+        const reasonText = reason ? ` — ${reason}` : '';
+        await interaction.editReply({
+            content: `🕊️ Unbanned **${tag}** (\`${userId}\`)${reasonText}, sir.`
+        });
     } catch (error) {
         log.error('Unban failed', { err: error, guildId: interaction.guildId });
         await interaction.editReply({
