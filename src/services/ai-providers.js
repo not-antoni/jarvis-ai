@@ -336,8 +336,7 @@ class AIProviderManager {
         // Auto-discover all NVIDIA_API_KEY, NVIDIA_API_KEY2, etc.
         const nvidiaKeys = discoverEnvKeys('NVIDIA_API_KEY');
         const nvidiaModels =[
-            'google/gemma-4-31b-it',
-            'deepseek-ai/deepseek-v3.2'
+            'moonshotai/kimi-k2-instruct'
         ];
         const nvidiaModelOverride = process.env.NVIDIA_MODEL;
         const resolvedNvidiaModels = nvidiaModelOverride ? [nvidiaModelOverride] : nvidiaModels;
@@ -878,7 +877,7 @@ class AIProviderManager {
             rejectThreshold: this.loadConfig.rejectThreshold
         };
     }
-    async generateResponse(systemPrompt, userPrompt, maxTokens = config.ai?.maxTokens || 4096, userId = null) {
+    async generateResponse(systemPrompt, userPrompt, maxTokens = config.ai?.maxTokens || 8192, userId = null) {
         // Ensure prompts are strings (required by some providers like Groq)
         systemPrompt = systemPrompt != null ? String(systemPrompt) : '';
         userPrompt = userPrompt != null ? String(userPrompt) : '';
