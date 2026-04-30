@@ -13,7 +13,7 @@ const FAMILY_TIER = {
     deepseek: 'flexible',
     cerebras: 'moderate',
     openai: 'moderate',
-    nvidia: 'moderate',
+    nvidia: 'flexible',
     bedrock: 'moderate',
     openrouter: 'moderate',
     ollama: 'moderate',

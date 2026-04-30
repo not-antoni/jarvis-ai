@@ -27,9 +27,6 @@ const MAX_IMAGE_COUNT = 20;
 const REQUEST_TIMEOUT_MS = Number(process.env.BRAVE_SEARCH_TIMEOUT_MS) || 5000;
 const RETRY_DELAY_MS = Number(process.env.BRAVE_SEARCH_RETRY_DELAY_MS) || 250;
 
-// SafeSearch defaults — `strict` for both web and image because results feed
-// back into the model's context window. NSFW SERPs are a prompt-poisoning
-// vector even when the user didn't ask for them. Override via env.
 const VALID_SAFESEARCH = new Set(['off', 'moderate', 'strict']);
 function resolveSafesearch(scope) {
     const envKey = scope === 'image' ? 'BRAVE_IMAGE_SAFESEARCH' : 'BRAVE_SAFESEARCH';
@@ -59,18 +56,20 @@ const STOP_WORDS = new Set([
 const GIF_HINTS = /(\bgifs?\b|tenor|giphy|animated gif|reaction gif|looping gif)/i;
 const IMAGE_HINTS = /(\bimages?\b|\bphotos?\b|\bpictures?\b|\bwallpapers?\b|\bavatars?\b|\bicons?\b|\bmemes?\b|\bstickers?\b|\bart\b)/i;
 const VIDEO_HINTS = /(\bvideos?\b|\bclips?\b|\btrailers?\b|youtube|tiktok|\breels?\b)/i;
-// Time-sensitive intent — anything that points at a moment in history or a
-// quantity the model can't safely guess. Kept compact and *general* on
-// purpose (#259 follow-up): we don't want to hardcode topic-specific lists
-// (gold/btc/etc) — instead we trip on words that mean "this changes over
-// time" and let Brave do the actual lookup.
 const CURRENT_HINTS = /\b(?:latest|current|currently|recent|recently|today|tonight|tomorrow|yesterday|right now|now|breaking|news|update[ds]?|trending|live|happening|since|so far|to date|over time|so-far|earliest|oldest|biggest|smallest|first|last|highest|lowest|cheapest|fastest|best|worst|top|leading|trailing|forecast|prediction|outlook|score|scores|standings|results?|stats?|statistics|record|records|prices?|costs?|rates?|quotes?|values?|worth|exchange|conversion|translate)\b/i;
-// Year references like "2024" / "in 2030" — strong signal that the user wants
-// time-anchored info.
 const YEAR_HINT = /\b(19|20|21)\d{2}\b/;
-// Specific named entities (rough heuristic) — capitalised multi-word phrases or
-// brand-like tokens often need a fresh lookup.
 const PROPER_NOUN_HINT = /\b[A-Z][a-zA-Z0-9_]{2,}(?:\s+[A-Z][a-zA-Z0-9_]+){0,3}\b/;
+const MEME_HINTS = /\b(?:skibidi|rizz(?:ing)?|gyatt|sigma|slay|based|cringe|poggers|bussin|fr\s?fr|no\s?cap|lowkey|highkey|ratio|mid|sus|yeet|sheesh|npc|oomf|hits\s+different|it's?\s+giving|rent\s+free|main\s+character|touch\s+grass|skill\s+issue|cope|seethe|mald|glazing|brainrot|ick|delulu|situationship|roman\s+empire|girl\s+dinner|unalived|ate\s+that|left\s+no\s+crumbs|real\s+and\s+true|fanum\s+tax|mewing|looksmax(?:xing)?|aura|crash\s*out|yap(?:per|ping)?|let\s*him\s*cook|stand\s*proud|domain\s*expansion|goon(?:ing)?|edging|demure|brat|unc|pookie|lock(?:ed)?\s*in|cooked|washed|tweaking|mog(?:ging)?|kino|peak|schizo|bop|ohio|blud|type\s*shit|freaky|bet|chat|is\s*bro|bro\s*really|catching\s*strays|fraud)\b/i;
+
+function looksLikeMemeFragment(text) {
+    const words = tokenize(text);
+    if (words.length < 2 || words.length > 7) { return false; }
+    const contentWords = words.filter(w => !STOP_WORDS.has(w));
+    if (contentWords.length === 0) { return false; }
+    if (/^(who|what|when|where|why|how|which|is|are|was|were|do|does|did)\b/i.test(text)) { return false; }
+    if (/^(hi|hey|hello|yo|sup|wassup|howdy|good\s+(morning|evening|night|afternoon))/i.test(text.trim())) { return false; }
+    return true;
+}
 
 function getApiKey() {
     const key = (process.env.BRAVE_SEARCH_API_KEY || process.env.BRAVE_API_KEY || '').trim();
@@ -94,7 +93,7 @@ function stripNoiseFromPrompt(text) {
         .trim()
         .replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, '')
         .replace(/^(hey|hi|hello|yo|ok|okay|please|pls|can you|could you|would you|will you|jarvis|garmin|sir)[\s,:-]+/i, '')
-        .replace(/(can you|could you|would you|please|pls|kindly)/gi, ' ')
+        .replace(/ (can you|could you|would you|please|pls|kindly) /gi, ' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
 }
@@ -139,12 +138,14 @@ function sanitizeUrl(url) {
 }
 
 function sourceFromResult(item) {
-    return item?.meta_url?.netloc || item?.profile?.name || item?.source || item?.publisher || null;
+    const source = item?.meta_url?.netloc || item?.profile?.name || item?.source || item?.publisher || null;
+    if (typeof source === 'string') { return source; }
+    return source?.name || source?.url || null;
 }
 
 function extractUrlCandidate(value) {
-    if (!value) {return null;}
-    if (typeof value === 'string') {return sanitizeUrl(value);}
+    if (!value) { return null; }
+    if (typeof value === 'string') { return sanitizeUrl(value); }
     if (typeof value === 'object') {
         return sanitizeUrl(
             value.url || value.src || value.link || value.href || value.original || value.original_url || value.originalUrl || ''
@@ -176,7 +177,7 @@ function extractImageUrl(item) {
 
     for (const candidate of candidates) {
         const url = extractUrlCandidate(candidate);
-        if (url) {return url;}
+        if (url) { return url; }
     }
 
     return null;
@@ -197,7 +198,7 @@ function extractThumbnailUrl(item) {
 
     for (const candidate of candidates) {
         const url = extractUrlCandidate(candidate);
-        if (url) {return url;}
+        if (url) { return url; }
     }
 
     return null;
@@ -209,13 +210,13 @@ function isGifUrl(url) {
 
 function rewriteSearchQuery(prompt, { mode = 'web', forceGif = false } = {}) {
     const cleaned = stripNoiseFromPrompt(prompt);
-    if (!cleaned) {return null;}
+    if (!cleaned) { return null; }
 
     let query = cleaned
         .replace(/^((what|who|when|where|why|how)('?s| is| are| was| were)?\s+)/i, '')
         .replace(/^(find|search for|look up|lookup|google|brave search|web search|search the web)\s+/i, '')
         .replace(/\?$|\s+\?$/g, '')
-        .replace(/(please|thanks|thank you)/gi, ' ')
+        .replace(/ (please|thanks|thank you) /gi, ' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
 
@@ -227,7 +228,6 @@ function rewriteSearchQuery(prompt, { mode = 'web', forceGif = false } = {}) {
         query = `${query} gif`;
     }
 
-    // Keep the highest-value terms if the prompt is still very wordy.
     const terms = tokenize(query).filter(token => token.length > 2 && !STOP_WORDS.has(token));
     if (terms.length >= 3) {
         const compressed = terms.join(' ');
@@ -236,15 +236,14 @@ function rewriteSearchQuery(prompt, { mode = 'web', forceGif = false } = {}) {
         }
     }
 
-    // Brave API query limit is 50 words; keep well below that for noisy prompts.
     const trimmedWords = tokenize(query).slice(0, 18).join(' ');
     return normalizeWhitespace(trimmedWords).slice(0, 180) || null;
 }
 
 function detectSearchPlan(prompt) {
-    if (typeof prompt !== 'string') {return null;}
+    if (typeof prompt !== 'string') { return null; }
     const text = prompt.trim();
-    if (text.length < 4 || text.length > 500) {return null;}
+    if (text.length < 4 || text.length > 500) { return null; }
 
     const lower = text.toLowerCase();
     const gifIntent = GIF_HINTS.test(lower);
@@ -252,29 +251,24 @@ function detectSearchPlan(prompt) {
     const videoIntent = VIDEO_HINTS.test(lower);
     const yearIntent = YEAR_HINT.test(text);
     const currentIntent = CURRENT_HINTS.test(lower) || yearIntent;
-    // Trip on a question word at the start regardless of "?" (#259) — but only
-    // when there are enough content tokens to form a real query. Avoids
-    // matching trivia like "what is love" or "how are you" alone.
+    const memeIntent = MEME_HINTS.test(lower) || looksLikeMemeFragment(text);
     const startsWithQuestion = /^(who|what|when|where|why|how|which)\b/i.test(text);
     const contentTokens = tokenize(text).filter(tok => !STOP_WORDS.has(tok));
     const questionLike = startsWithQuestion && (text.includes('?') || contentTokens.length >= 3);
-    // Tightened lookup phrasing — "is/are/was/were" alone caused false positives on
-    // chit-chat ("i am sad"). Require a noun-ish target.
     const phraseLooksLookup = /\b(?:means|definition of|meaning of|price of|value of|status of|how many|how much|how old|how tall)\b/i.test(lower);
-    // Explicit "go search this" verbs — a user typing any of these is asking
-    // for a web lookup, regardless of the rest of the heuristic. Kept
-    // lenient because the failure mode of a missed search ("the model just
-    // hallucinated") is worse than a redundant search.
     const explicitSearch = /(?:^|\s)(?:search|google|bing|lookup|look\s+(?:it|that|this)?\s*up|find\s+(?:me\s+)?(?:info|out|about|on)|brave\s*search|web\s*search|search\s*the\s*web|research)\b/i.test(lower);
     const properNounLookup = startsWithQuestion && PROPER_NOUN_HINT.test(text);
 
-    if (!explicitSearch && !questionLike && !phraseLooksLookup && !currentIntent && !imageIntent && !videoIntent && !properNounLookup) {
+    if (!explicitSearch && !questionLike && !phraseLooksLookup && !currentIntent && !imageIntent && !videoIntent && !properNounLookup && !memeIntent) {
         return null;
     }
 
-    const mode = imageIntent ? 'image' : (videoIntent ? 'video' : 'web');
-    const query = rewriteSearchQuery(text, { mode, forceGif: gifIntent });
-    if (!query) {return null;}
+    const mode = imageIntent ? 'image' : 'web';
+    const query = memeIntent && !explicitSearch
+        ? `${rewriteSearchQuery(text, { mode: 'web' }) || text} meme`
+        : rewriteSearchQuery(text, { mode, forceGif: gifIntent });
+
+    if (!query) { return null; }
 
     return {
         mode,
@@ -284,17 +278,14 @@ function detectSearchPlan(prompt) {
         imageIntent,
         videoIntent,
         currentIntent,
-        yearIntent
+        yearIntent,
+        memeIntent
     };
 }
 
 function detectSearchIntent(prompt) {
-    // Returns the cleaned prompt (polite filler stripped) so callers can
-    // surface a usable search intent, but preserves question phrasing for
-    // readability (#259). The fully rewritten short-form query lives on
-    // `plan.query` for direct API calls.
     const plan = detectSearchPlan(prompt);
-    if (!plan) {return null;}
+    if (!plan) { return null; }
     const cleaned = stripNoiseFromPrompt(plan.originalQuery);
     return cleaned || plan.originalQuery;
 }
@@ -308,19 +299,19 @@ function relevanceScore(result, queryTerms, exactQuery, { gifIntent = false } = 
     }
 
     for (const term of queryTerms) {
-        if (haystack.includes(term)) {score += 1.5;}
-        if ((result.title || '').toLowerCase().includes(term)) {score += 1;}
+        if (haystack.includes(term)) { score += 1.5; }
+        if ((result.title || '').toLowerCase().includes(term)) { score += 1; }
     }
 
-    if (result.age) {score -= 0.25;}
-    if (result.source) {score += 0.2;}
-    if (/^(reddit|x|twitter|facebook|tiktok)$/i.test(result.source || '')) {score -= 0.5;}
+    if (result.age) { score -= 0.25; }
+    if (result.source) { score += 0.2; }
+    if (/^(reddit|x|twitter|facebook|tiktok)$/i.test(result.source || '')) { score -= 0.5; }
 
     if (gifIntent) {
         const url = `${result.url || ''} ${result.mediaUrl || ''} ${result.thumbnail || ''}`.toLowerCase();
-        if (isGifUrl(url)) {score += 5;}
-        if (/tenor\.com|giphy\.com/i.test(url)) {score += 2.5;}
-        if (/reaction|loop|animated|animation|gif/i.test(haystack)) {score += 1;}
+        if (isGifUrl(url)) { score += 5; }
+        if (/tenor\.com|giphy\.com/i.test(url)) { score += 2.5; }
+        if (/reaction|loop|animated|animation|gif/i.test(haystack)) { score += 1; }
     }
 
     return score;
@@ -334,7 +325,7 @@ function dedupeAndRankWeb(results, query) {
 
     for (const item of results) {
         const url = sanitizeUrl(item?.url || '');
-        if (!url || seen.has(url)) {continue;}
+        if (!url || seen.has(url)) { continue; }
         seen.add(url);
 
         const normalizedItem = {
@@ -351,7 +342,7 @@ function dedupeAndRankWeb(results, query) {
     }
 
     normalized.sort((a, b) => {
-        if (b.score !== a.score) {return b.score - a.score;}
+        if (b.score !== a.score) { return b.score - a.score; }
         if ((b.title || '').length !== (a.title || '').length) {
             return (a.title || '').length - (b.title || '').length;
         }
@@ -371,7 +362,7 @@ function dedupeAndRankImages(results, query, { gifIntent = false } = {}) {
         const mediaUrl = sanitizeUrl(extractImageUrl(item) || item?.url || '');
         const pageUrl = sanitizeUrl(item?.pageUrl || item?.sourceUrl || item?.source?.url || item?.url || '');
         const uniqueKey = mediaUrl || pageUrl;
-        if (!uniqueKey || seen.has(uniqueKey)) {continue;}
+        if (!uniqueKey || seen.has(uniqueKey)) { continue; }
         seen.add(uniqueKey);
 
         const thumbnail = extractThumbnailUrl(item);
@@ -393,9 +384,9 @@ function dedupeAndRankImages(results, query, { gifIntent = false } = {}) {
     }
 
     normalized.sort((a, b) => {
-        if (b.score !== a.score) {return b.score - a.score;}
-        if (b.mediaUrl && !a.mediaUrl) {return 1;}
-        if (a.mediaUrl && !b.mediaUrl) {return -1;}
+        if (b.score !== a.score) { return b.score - a.score; }
+        if (b.mediaUrl && !a.mediaUrl) { return 1; }
+        if (a.mediaUrl && !b.mediaUrl) { return -1; }
         if ((b.title || '').length !== (a.title || '').length) {
             return (a.title || '').length - (b.title || '').length;
         }
@@ -405,13 +396,30 @@ function dedupeAndRankImages(results, query, { gifIntent = false } = {}) {
     return normalized;
 }
 
+function getRetryAfterMs(response) {
+    const raw = response?.headers?.get?.('retry-after');
+    if (!raw) { return 0; }
+
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds) && seconds > 0) {
+        return seconds * 1000;
+    }
+
+    const dateMs = Date.parse(raw);
+    if (Number.isFinite(dateMs)) {
+        return Math.max(0, dateMs - Date.now());
+    }
+
+    return 0;
+}
+
 async function fetchWithRetry(url, { signal = null, headers = {}, retries = 2 } = {}) {
     let lastError = null;
 
     for (let attempt = 0; attempt <= retries; attempt += 1) {
-        const timeoutController = new AbortController();
-        const timeout = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
-        const onAbort = () => timeoutController.abort();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(new Error('request timeout')), REQUEST_TIMEOUT_MS);
+        const onAbort = () => controller.abort(signal?.reason || new Error('request aborted'));
 
         try {
             if (signal) {
@@ -423,13 +431,13 @@ async function fetchWithRetry(url, { signal = null, headers = {}, retries = 2 } 
 
             const res = await fetch(url, {
                 headers,
-                signal: timeoutController.signal
+                signal: controller.signal
             });
 
-            clearTimeout(timeout);
             if (signal) {
                 signal.removeEventListener('abort', onAbort);
             }
+            clearTimeout(timeout);
 
             if (res.ok) {
                 return res;
@@ -440,23 +448,25 @@ async function fetchWithRetry(url, { signal = null, headers = {}, retries = 2 } 
             lastError = new Error(`Brave API returned ${res.status}`);
             lastError.status = res.status;
             lastError.body = body.slice(0, 200);
+
             if (!retryable || attempt >= retries) {
                 return res;
             }
+
+            const retryAfterMs = getRetryAfterMs(res);
+            const delay = retryAfterMs > 0 ? retryAfterMs : RETRY_DELAY_MS * (attempt + 1);
+            await new Promise(resolve => setTimeout(resolve, delay));
         } catch (error) {
-            clearTimeout(timeout);
             if (signal) {
                 signal.removeEventListener('abort', onAbort);
             }
+            clearTimeout(timeout);
             lastError = error;
             if (attempt >= retries) {
                 throw error;
             }
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
         }
-
-        const retryAfter = Number(headers['Retry-After']) || 0;
-        const delay = retryAfter > 0 ? retryAfter * 1000 : RETRY_DELAY_MS * (attempt + 1);
-        await new Promise(resolve => setTimeout(resolve, delay));
     }
 
     throw lastError || new Error('request failed');
@@ -488,9 +498,6 @@ async function searchWeb(query, { count = DEFAULT_COUNT, signal = null, freshnes
     url.searchParams.set('country', process.env.BRAVE_SEARCH_COUNTRY || 'us');
     url.searchParams.set('safesearch', resolveSafesearch('web'));
     url.searchParams.set('spellcheck', 'true');
-    // Brave's freshness param: pd (past day), pw (past week), pm (past month),
-    // py (past year). We use it for "current/latest" intents so the LLM gets
-    // genuinely fresh results instead of years-old SERP entries (#259).
     if (freshness && /^(pd|pw|pm|py)$/i.test(freshness)) {
         url.searchParams.set('freshness', String(freshness).toLowerCase());
     }
@@ -639,12 +646,12 @@ async function searchImages(query, { count = 12, signal = null, gifIntent = fals
 }
 
 function pickFreshness(plan, prompt) {
-    if (!plan) {return null;}
+    if (!plan) { return null; }
     const lower = String(prompt || '').toLowerCase();
-    if (/today|tonight|right now|breaking|live|happening now/i.test(lower)) {return 'pd';}
-    if (/this week|recent|latest|current|news|update/i.test(lower)) {return 'pw';}
-    if (plan.currentIntent) {return 'pm';}
-    if (plan.yearIntent) {return 'py';}
+    if (/today|tonight|right now|breaking|live|happening now/i.test(lower)) { return 'pd'; }
+    if (/this week|recent|latest|current|news|update/i.test(lower)) { return 'pw'; }
+    if (plan.currentIntent) { return 'pm'; }
+    if (plan.yearIntent) { return 'py'; }
     return null;
 }
 
@@ -654,11 +661,13 @@ async function search(query, { count = DEFAULT_COUNT, signal = null, mode = 'aut
         return { ok: false, reason: 'Empty query', results: [] };
     }
 
-    const plan = mode === 'auto' ? detectSearchPlan(cleanQuery) : {
-        mode,
-        query: rewriteSearchQuery(cleanQuery, { mode: mode === 'image' ? 'image' : 'web', forceGif: mode === 'image' && GIF_HINTS.test(cleanQuery) }) || cleanQuery,
-        gifIntent: GIF_HINTS.test(cleanQuery)
-    };
+    const plan = mode === 'auto'
+        ? detectSearchPlan(cleanQuery)
+        : {
+            mode,
+            query: rewriteSearchQuery(cleanQuery, { mode: mode === 'image' ? 'image' : 'web', forceGif: mode === 'image' && GIF_HINTS.test(cleanQuery) }) || cleanQuery,
+            gifIntent: GIF_HINTS.test(cleanQuery)
+        };
 
     const chosenMode = plan?.mode || 'web';
     if (chosenMode === 'image') {
@@ -674,6 +683,7 @@ async function searchByIntent(prompt, options = {}) {
     if (!plan) {
         return { ok: false, reason: 'No searchable intent detected', results: [] };
     }
+
     return search(plan.query, {
         ...options,
         mode: plan.mode,

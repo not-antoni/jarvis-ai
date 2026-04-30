@@ -151,6 +151,7 @@ const PROMPTS_DIR = path.join(__dirname, '..', '..', 'config');
 const SYSTEM_PROMPT_PATH = path.join(PROMPTS_DIR, 'system-prompt.txt');
 const CLOSING_ANCHOR_PATH = path.join(PROMPTS_DIR, 'prompts', 'closing-anchor.txt');
 const WEB_SEARCH_ANCHOR_PATH = path.join(PROMPTS_DIR, 'prompts', 'web-search-anchor.txt');
+const BALL_KNOWLEDGE_PATH = path.join(PROMPTS_DIR, 'prompts', 'ball-knowledge.txt');
 
 const _promptFileCache = new Map(); // path -> { content, mtimeMs }
 
@@ -178,6 +179,9 @@ function loadClosingAnchor() {
 }
 function loadWebSearchAnchor() {
     return loadPromptFile(WEB_SEARCH_ANCHOR_PATH, '');
+}
+function loadBallKnowledge() {
+    return loadPromptFile(BALL_KNOWLEDGE_PATH, '');
 }
 
 
@@ -419,6 +423,11 @@ class JarvisAI {
                 : await database.getUserProfile(userId, userName);
             let systemPrompt = this.personality.basePrompt;
 
+            // Ball knowledge — internet culture / meme awareness block
+            const ballKnowledge = loadBallKnowledge();
+            if (ballKnowledge) {
+                systemPrompt += `\n\n${ballKnowledge}`;
+            }
 
             // Mood detection - adjust tone based on user's emotional state
             if (userFeatures) {
