@@ -51,6 +51,7 @@ const agentPreferredProviders = (process.env.AGENT_PREFERRED_PROVIDERS || '')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
+
 function parsePositiveIntEnv(name, fallback, options = {}) {
     const { min = 1, max = Number.POSITIVE_INFINITY } = options;
     const raw = process.env[name];
@@ -122,6 +123,7 @@ const rawConfig = {
             memories: process.env.VAULT_MEMORIES_COLLECTION || 'vaultMemories'
         }
     },
+
     security: {
         masterKeyBase64: process.env.MASTER_KEY_BASE64,
         vaultCacheTtlMs: process.env.VAULT_CACHE_TTL_MS
@@ -152,12 +154,15 @@ const rawConfig = {
     ai: {
         cooldownMs: process.env.AI_COOLDOWN_MS ? Number(process.env.AI_COOLDOWN_MS) : 5000,
         requestBudgetMs: parsePositiveIntEnv('AI_REQUEST_BUDGET_MS', 60000),
+
+        // Existing env vars only. This keeps the request-side ceiling high enough
+        // for long internal prompts while still allowing overrides in deployment.
         maxTokens: parsePositiveIntEnv(
             'AI_MAX_OUTPUT_TOKENS',
-            parsePositiveIntEnv('AI_MAX_TOKENS', 1024)
+            parsePositiveIntEnv('AI_MAX_TOKENS', 2048)
         ),
-        maxInputLength: parsePositiveIntEnv('AI_MAX_INPUT_CHARS', 2000, { max: 2000 }),
-        maxInputTokens: parsePositiveIntEnv('AI_MAX_INPUT_TOKENS', 1024),
+        maxInputLength: parsePositiveIntEnv('AI_MAX_INPUT_CHARS', 2000, { max: 60000 }),
+        maxInputTokens: parsePositiveIntEnv('AI_MAX_INPUT_TOKENS', 25000),
         temperature: 1,
         retryAttempts: 0,
         // Provider selection: "auto" for round-robin, or specific provider family
