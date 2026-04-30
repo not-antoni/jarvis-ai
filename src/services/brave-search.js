@@ -7,8 +7,11 @@
  * Env:
  *   BRAVE_SEARCH_API_KEY   required for live calls (otherwise client is inert)
  *   BRAVE_API_KEY          alias for BRAVE_SEARCH_API_KEY
+ *   BRAVE_ANSWERS_API_KEY   dedicated key for the Answers / chat endpoint
  *   BRAVE_SEARCH_ENDPOINT  override web search base URL (default api.search.brave.com)
  *   BRAVE_SEARCH_IMAGE_ENDPOINT override image search base URL
+ *   BRAVE_LLM_CONTEXT_ENDPOINT override LLM context base URL
+ *   BRAVE_ANSWERS_ENDPOINT override Answers / chat completions base URL
  *   BRAVE_SEARCH_COUNTRY   two-letter country code (default "us")
  *   BRAVE_SEARCH_TTL_MS    cache TTL in ms (default 5 minutes)
  */
@@ -20,6 +23,8 @@ const log = logger.child({ module: 'brave-search' });
 
 const DEFAULT_WEB_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search';
 const DEFAULT_IMAGE_ENDPOINT = 'https://api.search.brave.com/res/v1/images/search';
+const DEFAULT_LLM_CONTEXT_ENDPOINT = 'https://api.search.brave.com/res/v1/llm/context';
+const DEFAULT_ANSWERS_ENDPOINT = 'https://api.search.brave.com/res/v1/chat/completions';
 const DEFAULT_TTL_MS = 5 * 60_000;
 const DEFAULT_COUNT = 5;
 const MAX_WEB_COUNT = 10;
@@ -74,6 +79,10 @@ function looksLikeMemeFragment(text) {
 function getApiKey() {
     const key = (process.env.BRAVE_SEARCH_API_KEY || process.env.BRAVE_API_KEY || '').trim();
     return key || null;
+}
+
+function getAnswersApiKey() {
+    return (process.env.BRAVE_ANSWERS_API_KEY || '').trim() || null;
 }
 
 function isConfigured() {
@@ -645,6 +654,136 @@ async function searchImages(query, { count = 12, signal = null, gifIntent = fals
     }
 }
 
+async function searchLLMContext(query, { count = 5, signal = null } = {}) {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        return { ok: false, reason: 'Search API key not configured', results: [] };
+    }
+
+    const cleanQuery = String(query || '').trim();
+    if (!cleanQuery) {
+        return { ok: false, reason: 'Empty query', results: [] };
+    }
+
+    const safeCount = Math.max(1, Math.min(Number(count) || 5, MAX_WEB_COUNT));
+    const cacheKey = `llm-context::${normalizeQuery(cleanQuery)}::${safeCount}::${process.env.BRAVE_SEARCH_COUNTRY || 'us'}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        return { ok: true, cached: true, ...cached };
+    }
+
+    const endpoint = (process.env.BRAVE_LLM_CONTEXT_ENDPOINT || DEFAULT_LLM_CONTEXT_ENDPOINT).replace(/\/$/, '');
+    const rewrittenQuery = rewriteSearchQuery(cleanQuery, { mode: 'web' }) || cleanQuery;
+    const url = new URL(endpoint);
+    url.searchParams.set('q', rewrittenQuery);
+    url.searchParams.set('count', String(safeCount));
+    url.searchParams.set('country', process.env.BRAVE_SEARCH_COUNTRY || 'us');
+    url.searchParams.set('safesearch', resolveSafesearch('web'));
+    url.searchParams.set('spellcheck', 'true');
+
+    try {
+        const res = await fetchWithRetry(url, {
+            headers: {
+                Accept: 'application/json',
+                'Cache-Control': 'no-cache',
+                'X-Subscription-Token': apiKey,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
+            },
+            signal,
+            retries: 2
+        });
+
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            log.warn('Brave LLM context search API error', {
+                status: res.status,
+                body: body.slice(0, 200),
+                query: rewrittenQuery
+            });
+            return { ok: false, reason: `Brave API returned ${res.status}`, results: [] };
+        }
+
+        const data = await res.json();
+        const grounding = Array.isArray(data?.grounding?.generic)
+            ? data.grounding.generic
+            : Array.isArray(data?.grounding)
+                ? data.grounding
+                : [];
+
+        const results = grounding.slice(0, safeCount).map(item => ({
+            kind: 'llm_context',
+            title: normalizeWhitespace(item?.title || item?.name || ''),
+            url: sanitizeUrl(item?.url || item?.link || item?.sourceUrl || ''),
+            description: normalizeWhitespace(item?.snippet || item?.description || item?.content || ''),
+            source: normalizeWhitespace(item?.source || item?.publisher || item?.domain || ''),
+            raw: item
+        }));
+
+        const payload = {
+            ok: true,
+            cached: false,
+            mode: 'llm_context',
+            results,
+            query: cleanQuery,
+            rewrittenQuery,
+            totalResults: grounding.length
+        };
+        cache.set(cacheKey, payload);
+        return payload;
+    } catch (error) {
+        log.error('Brave LLM context search failed', { err: error, query: rewrittenQuery });
+        return { ok: false, reason: error?.message || 'request failed', results: [] };
+    }
+}
+
+async function getBraveAnswer(prompt, { signal = null } = {}) {
+    const apiKey = getAnswersApiKey();
+    if (!apiKey) {
+        return { ok: false, answer: null };
+    }
+
+    const cleanPrompt = String(prompt || '').trim();
+    if (!cleanPrompt) {
+        return { ok: false, answer: null };
+    }
+
+    const endpoint = (process.env.BRAVE_ANSWERS_ENDPOINT || DEFAULT_ANSWERS_ENDPOINT).replace(/\/$/, '');
+
+    try {
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Subscription-Token': apiKey,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                messages: [{ role: 'user', content: cleanPrompt }]
+            }),
+            signal
+        });
+
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            log.warn('Brave Answers API error', {
+                status: res.status,
+                body: body.slice(0, 200)
+            });
+            return { ok: false, answer: null };
+        }
+
+        const data = await res.json();
+        const answer = data?.choices?.[0]?.message?.content || null;
+        return {
+            ok: true,
+            answer
+        };
+    } catch (error) {
+        log.error('Brave Answers API failed', { err: error });
+        return { ok: false, answer: null };
+    }
+}
+
 function pickFreshness(plan, prompt) {
     if (!plan) { return null; }
     const lower = String(prompt || '').toLowerCase();
@@ -696,6 +835,9 @@ module.exports = {
     searchByIntent,
     searchWeb,
     searchImages,
+    searchLLMContext,
+    getBraveAnswer,
+    getAnswersApiKey,
     isConfigured,
     detectSearchIntent,
     detectSearchPlan,
