@@ -27,3 +27,12 @@ Tier mapping in `src/services/ai-providers-execution.js`:
 - flexible: mistral, google, deepseek
 - moderate: cerebras, openai, nvidia, bedrock, openrouter, ollama
 - strict: groq, sambanova
+
+================IMPLEMENT AGENT CALLING===================
+opencode run "create a folder named 'balls' on my desktop"
+
+ollama launch claude --model qwen3.5:cloud --yes -- -p "create a folder named 'balls' on my desktop" --dangerously-skip-permissions
+
+GEMINI_CLI_TRUST_WORKSPACE=true gemini -p "create a folder named 'balls' on my desktop" --skip-trust
+
+vibe --agent auto-approve "create a folder named 'balls' on my desktop" --trust
