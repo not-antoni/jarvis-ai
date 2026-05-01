@@ -3,53 +3,34 @@
 const fs = require('fs');
 const path = require('path');
 
-const promptsDir = path.join(__dirname, '..', '..', '..', 'config', 'prompts');
-const _promptCache = {};
-const _promptMtimes = {};
+const PROMPT_PATH = path.join(__dirname, '..', '..', '..', 'config', 'system-prompt.txt');
 
-const FAMILY_TIER = {
-    mistral: 'flexible',
-    google: 'flexible',
-    deepseek: 'flexible',
-    cerebras: 'moderate',
-    openai: 'moderate',
-    nvidia: 'flexible',
-    bedrock: 'moderate',
-    openrouter: 'moderate',
-    ollama: 'moderate',
-    groq: 'strict',
-    sambanova: 'strict'
-};
+let _promptCache = null;
+let _promptMtime = null;
 
-function loadTierPrompt(tier) {
-    const filePath = path.join(promptsDir, `${tier}.txt`);
+function loadSystemPrompt() {
     try {
-        const stat = fs.statSync(filePath);
-        if (_promptCache[tier] && _promptMtimes[tier] === stat.mtimeMs) {
-            return _promptCache[tier];
+        const stat = fs.statSync(PROMPT_PATH);
+        if (_promptCache !== null && _promptMtime === stat.mtimeMs) {
+            return _promptCache;
         }
-        _promptCache[tier] = fs.readFileSync(filePath, 'utf8').trim();
-        _promptMtimes[tier] = stat.mtimeMs;
+        _promptCache = fs.readFileSync(PROMPT_PATH, 'utf8').trim();
+        _promptMtime = stat.mtimeMs;
     } catch (err) {
-        console.warn(`[AIExecution] Failed to load ${tier}.txt prompt, falling back to flexible:`, err.message);
-        if (tier !== 'flexible') {return loadTierPrompt('flexible');}
-        _promptCache[tier] = null;
+        console.warn(`[AIExecution] Failed to load system-prompt.txt:`, err.message);
+        _promptCache = null;
     }
-    return _promptCache[tier];
+    return _promptCache;
 }
 
-function resolveSystemPrompt(composedPrompt, provider) {
-    const family = String(provider?.family || '').toLowerCase();
-    const tier = FAMILY_TIER[family];
-    if (!tier || tier === 'flexible') {return composedPrompt;}
-    const tierPrompt = loadTierPrompt(tier);
-    if (!tierPrompt) {return composedPrompt;}
-    const toneMatch = composedPrompt.match(/\n\n\[TONE ADJUSTMENT:[^\]]*\]/);
-    return tierPrompt + (toneMatch ? toneMatch[0] : '');
+function resolveSystemPrompt(composedPrompt, _provider) {
+    const prompt = loadSystemPrompt();
+    if (!prompt) return composedPrompt;
+    const toneMatch = composedPrompt?.match(/\n\n\[TONE ADJUSTMENT:[^\]]*\]/);
+    return prompt + (toneMatch ? toneMatch[0] : '');
 }
 
 module.exports = {
-    FAMILY_TIER,
-    loadTierPrompt,
+    loadSystemPrompt,
     resolveSystemPrompt
 };
