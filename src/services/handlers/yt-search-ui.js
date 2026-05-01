@@ -165,15 +165,11 @@ async function handleButton(interaction, action, sessionId) {
 
     if (action === 'delete') {
         sessions.delete(sessionId);
-        try {
-            await interaction.message.delete();
-        } catch {
-            await interaction.update({
-                content: 'Search panel removed, sir.',
-                embeds: [],
-                components: [],
-                allowedMentions: { parse: [] }
-            }).catch(() => {});
+        const message = interaction.message || await resolveMessageForSession(interaction, session);
+        if (message) {
+            await message.delete();
+        } else {
+            await interaction.deleteReply();
         }
         return true;
     }
