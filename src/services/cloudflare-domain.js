@@ -157,7 +157,7 @@ function ensureCloudflareIpsTimer(projectRoot) {
             'cloudflare-ips-update.timer'
         );
         execSync(`sudo chmod +x ${projectRoot}/scripts/update-cloudflare-ips.sh`, { encoding: 'utf8' });
-        // Don't force an immediate run — let the timer handle it on schedule.
+        // Don't force an immediate run - let the timer handle it on schedule.
         // Starting the oneshot service right now can fail (network not ready, etc.)
         // and causes noisy errors on every bot restart.
         return true;

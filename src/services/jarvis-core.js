@@ -26,7 +26,7 @@ const WEB_SEARCH_MAX_RESULTS = Math.min(Math.max(Number(process.env.WEB_SEARCH_M
 
 /**
  * Runs a conditional web search based on a heuristic. Returns a ready-to-splice
- * context block (string) plus a short system-prompt nudge. Always resolves —
+ * context block (string) plus a short system-prompt nudge. Always resolves -
  * never blocks the pipeline on failure.
  */
 async function maybeBuildWebSearchBlock(userInput, { voice = false } = {}) {
@@ -72,7 +72,7 @@ async function maybeBuildWebSearchBlock(userInput, { voice = false } = {}) {
         : 'WEB_SEARCH';
 
     const block = [
-        `[${modeLabel} — current external evidence only. Prefer these over memory when they conflict.]`,
+        `[${modeLabel} - current external evidence only. Prefer these over memory when they conflict.]`,
         `Query: ${searchLabel}`,
         outcome.totalResults ? `Matches: ${outcome.totalResults}` : null,
         outcome.mode === 'image'
@@ -423,7 +423,7 @@ class JarvisAI {
                 : await database.getUserProfile(userId, userName);
             let systemPrompt = this.personality.basePrompt;
 
-            // Ball knowledge — internet culture / meme awareness block
+            // Ball knowledge - internet culture / meme awareness block
             const ballKnowledge = loadBallKnowledge();
             if (ballKnowledge) {
                 systemPrompt += `\n\n${ballKnowledge}`;
@@ -442,7 +442,7 @@ class JarvisAI {
                 }
             }
 
-            // Closing anchor — models attend most to start and end of prompts.
+            // Closing anchor - models attend most to start and end of prompts.
             // Loaded from config/prompts/closing-anchor.txt so operators can
             // tune it without editing source.
             const closingAnchor = loadClosingAnchor();
@@ -527,7 +527,7 @@ class JarvisAI {
                             threadContext = [
                                 '',
                                 '[THREAD_CONTEXT]',
-                                `These are recent messages from this channel for awareness only. The current speaker is "${userName}". Do NOT attribute past lines to them unless the line is explicitly tagged with their name. Do not repeat your own openers/phrasing — vary every reply.`,
+                                `These are recent messages from this channel for awareness only. The current speaker is "${userName}". Do NOT attribute past lines to them unless the line is explicitly tagged with their name. Do not repeat your own openers/phrasing - vary every reply.`,
                                 ...lines,
                                 '[/THREAD_CONTEXT]',
                                 ''
@@ -546,7 +546,7 @@ class JarvisAI {
             });
             let contextPrefix = options.contextPrefix || '';
 
-            // Conditional web search — only when heuristic matches and Brave is configured.
+            // Conditional web search - only when heuristic matches and Brave is configured.
             // Failure is silent; we never block the AI response on search latency.
             const webSearch = await maybeBuildWebSearchBlock(userInput, { voice: Boolean(options.voice) });
             if (webSearch) {
@@ -560,7 +560,7 @@ class JarvisAI {
             const context = `[USER: ${userName}]
 
 ${secureMemoryBlock}
-${recentJarvisResponses.length ? `[Vary your phrasing — your last replies started with: ${recentJarvisResponses.map(r => `"${r.slice(0, 30)}..."`).join(', ')}]` : ''}${threadContext}
+${recentJarvisResponses.length ? `[Vary your phrasing - your last replies started with: ${recentJarvisResponses.map(r => `"${r.slice(0, 30)}..."`).join(', ')}]` : ''}${threadContext}
 ${contextPrefix}${sanitizedInput}`;
 
             // Apply SBX tokenMultiplier (default maxTokens, with unlimited_tokens: 2x)
@@ -587,7 +587,7 @@ ${contextPrefix}${sanitizedInput}`;
 
             let jarvisResponse = aiResponse.content?.trim();
 
-            // Garbage/poison detection — catch degenerate token loops before they pollute history
+            // Garbage/poison detection - catch degenerate token loops before they pollute history
             if (jarvisResponse && isGarbageOutput(jarvisResponse)) {
                 const providerName = aiResponse.provider || 'unknown-provider';
                 const sampleHash = crypto
@@ -607,7 +607,7 @@ ${contextPrefix}${sanitizedInput}`;
                     `[GarbageDetection] Poisoned output detected for user ${userId} from ${providerName}, discarding (${jarvisResponse.length} chars, hash=${sampleHash}, count=${poisonState.count || 1}, benched=${poisonState.benched ? 'yes' : 'no'}, sample="${sample}")`
                 );
                 jarvisResponse = 'That came out wrong. Run that by me again?';
-                // Do NOT save this to history — return early with clean response
+                // Do NOT save this to history - return early with clean response
                 this.lastActivity = Date.now();
                 return jarvisResponse;
             }

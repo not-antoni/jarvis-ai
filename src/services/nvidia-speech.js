@@ -46,7 +46,7 @@ function wrapPcmAsWav(pcm, sampleRate = 22050, channels = 1, bits = 16) {
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 /**
- * NVIDIA NIM Speech — Parakeet ASR (STT) + Magpie TTS Zeroshot with JARVIS voice.
+ * NVIDIA NIM Speech - Parakeet ASR (STT) + Magpie TTS Zeroshot with JARVIS voice.
  *
  * Mode selection (automatic):
  *   • NVIDIA_STT_URL / NVIDIA_TTS_URL set → HTTP REST (self-hosted NIM)

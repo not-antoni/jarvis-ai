@@ -22,14 +22,14 @@ function isInternalRecoveryResponse(text) {
 }
 
 /**
- * Detect garbage/poisoned AI output — token degeneration loops, prompt injection residue.
+ * Detect garbage/poisoned AI output - token degeneration loops, prompt injection residue.
  * Returns true if the text looks like garbage that should NOT be saved to history.
  */
 function isGarbageOutput(text) {
     if (!text || typeof text !== 'string') {return false;}
     if (text.length < 80) {return false;}
 
-    // Strip code blocks before analysis — code legitimately has syntax chars and repetition
+    // Strip code blocks before analysis - code legitimately has syntax chars and repetition
     const stripped = text.replace(/```[\s\S]*?```/g, '').trim();
     if (stripped.length < 80) {return false;}
 
@@ -56,7 +56,7 @@ function isGarbageOutput(text) {
         return true;
     }
 
-    // 1. Word repetition ratio — garbage loops repeat the same few words endlessly
+    // 1. Word repetition ratio - garbage loops repeat the same few words endlessly
     const words = stripped.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 1);
     if (words.length > 20) {
         const freq = {};

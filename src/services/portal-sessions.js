@@ -7,7 +7,7 @@
  *   with a best-effort in-memory fallback so the portal stays usable when the
  *   database is offline.
  * - Session IDs are 32-hex (128 bits). Cookies carry only the id, never the
- *   Discord access token — tokens stay server-side.
+ *   Discord access token - tokens stay server-side.
  * - CSRF state tokens are short-lived and kept in memory only.
  */
 
@@ -129,7 +129,7 @@ async function refreshSession(sid) {
     return { ...session, expiresAt: newExpiresAt };
 }
 
-// ─── CSRF state (in-memory only — short-lived) ──────────────────────────────
+// ─── CSRF state (in-memory only - short-lived) ──────────────────────────────
 
 function createState({ returnTo = '/portal' } = {}) {
     const state = generateId(24);

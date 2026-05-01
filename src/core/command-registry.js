@@ -367,7 +367,7 @@ const commandDefinitions = [
         feature: 'moderation',
         ephemeral: true
     },
-    // /search removed (#268) — the AI uses Brave Search internally.
+    // /search removed (#268) - the AI uses Brave Search internally.
     // ============ MUSIC EXTRAS ============
     {
         name: 'nowplaying',

@@ -7,7 +7,7 @@
  * The keyGenerator uses Express's trust-proxy-aware `req.ip`, so Cloudflare's
  * `CF-Connecting-IP` propagates correctly.
  *
- * Local/loopback requests are always allowed through — avoids self-pings
+ * Local/loopback requests are always allowed through - avoids self-pings
  * tripping the limiter during health checks.
  */
 

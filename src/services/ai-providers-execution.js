@@ -57,8 +57,8 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
     while (true) {
         const elapsedMs = Date.now() - requestStartedAt;
         const remainingBudgetMs = requestBudgetMs - elapsedMs;
-        // Hard ceiling: never exceed 2x the configured budget — even when
-        // honouring the min-attempts guarantee — so a wedged provider can't
+        // Hard ceiling: never exceed 2x the configured budget - even when
+        // honouring the min-attempts guarantee - so a wedged provider can't
         // hold the request open forever (#318).
         const overBudgetCeilingMs = requestBudgetMs * 2;
         const hasMinAttempts = attemptedProviders.size >= minAttempts;
@@ -431,7 +431,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             manager.scheduleStateSave();
             const errStatus = error?.status || error?.response?.status;
             // Content-policy blocks (prompt-side, providerFault:false) aren't
-            // provider failures — they're Google's fixed input filter or
+            // provider failures - they're Google's fixed input filter or
             // similar. Log at warn level with a clearer prefix so operators
             // don't mistake them for outages.
             const isPromptBlocked = error?.providerFault === false &&

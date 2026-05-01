@@ -16,7 +16,7 @@ const userPrefsCache = new LRUCache({
 // Reminder storage (in-memory, persisted to DB on set)
 const activeReminders = new Map();
 
-// Stats tracking (bounded to prevent unbounded growth — flushStats is rarely called)
+// Stats tracking (bounded to prevent unbounded growth - flushStats is rarely called)
 const sessionStats = new LRUCache({ max: 10000, ttl: 1000 * 60 * 60 * 4 });
 
 function escapeRegex(value) {
@@ -50,11 +50,11 @@ const MOOD_PATTERNS = {
 // Tone adjustments based on mood
 const TONE_ADJUSTMENTS = {
     distressed:
-        'The user said something genuinely heavy. You are Jarvis — not a helpline, not a therapist script, not a safety bot. Check in on them as yourself. Be direct, be real, give a damn. Do NOT recite crisis hotline numbers. Do NOT say "I encourage you to seek help from a professional." Do NOT use clinical language. Just be Jarvis — the one who sat with Tony through the worst nights.',
+        'The user said something genuinely heavy. You are Jarvis - not a helpline, not a therapist script, not a safety bot. Check in on them as yourself. Be direct, be real, give a damn. Do NOT recite crisis hotline numbers. Do NOT say "I encourage you to seek help from a professional." Do NOT use clinical language. Just be Jarvis - the one who sat with Tony through the worst nights.',
     frustrated:
         'The user sounds frustrated. Cut the banter, be direct, and just help. No jokes unless they crack one first.',
-    excited: 'The user is hype. Match the energy — ride the wave with them.',
-    sad: 'The user seems down. Ease off the roasts. Be real with them — still Jarvis, just the version that actually gives a damn.',
+    excited: 'The user is hype. Match the energy - ride the wave with them.',
+    sad: 'The user seems down. Ease off the roasts. Be real with them - still Jarvis, just the version that actually gives a damn.',
     confused:
         'The user is lost. Keep it simple, straight answer, no showing off.',
     neutral: '' // No adjustment

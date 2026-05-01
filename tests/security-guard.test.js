@@ -47,7 +47,7 @@ function makeRes() {
 
 // ─── #265 ASN block ──────────────────────────────────────────────────────
 
-test('ASN block — rejects requests from blocked AS numbers', () => {
+test('ASN block - rejects requests from blocked AS numbers', () => {
     const { guard, restore } = loadGuardWithEnv({ BLOCKED_ASNS: '14061,16276' });
     let nextCalled = false;
     const res = makeRes();
@@ -57,7 +57,7 @@ test('ASN block — rejects requests from blocked AS numbers', () => {
     restore();
 });
 
-test('ASN block — passes through allowed ASNs', () => {
+test('ASN block - passes through allowed ASNs', () => {
     const { guard, restore } = loadGuardWithEnv({ BLOCKED_ASNS: '14061' });
     let nextCalled = false;
     const res = makeRes();
@@ -68,7 +68,7 @@ test('ASN block — passes through allowed ASNs', () => {
 
 // ─── #266 IP whitelist ───────────────────────────────────────────────────
 
-test('IP whitelist (soft mode) — public routes bypass the gate', () => {
+test('IP whitelist (soft mode) - public routes bypass the gate', () => {
     const { guard, restore } = loadGuardWithEnv({
         IP_WHITELIST: '10.0.0.0/8',
         IP_WHITELIST_MODE: 'soft'
@@ -84,7 +84,7 @@ test('IP whitelist (soft mode) — public routes bypass the gate', () => {
     restore();
 });
 
-test('IP whitelist (soft mode) — protected routes block non-whitelisted IPs', () => {
+test('IP whitelist (soft mode) - protected routes block non-whitelisted IPs', () => {
     const { guard, restore } = loadGuardWithEnv({
         IP_WHITELIST: '10.0.0.0/8',
         IP_WHITELIST_MODE: 'soft'
@@ -101,7 +101,7 @@ test('IP whitelist (soft mode) — protected routes block non-whitelisted IPs', 
     restore();
 });
 
-test('IP whitelist (soft mode) — protected routes allow whitelisted IPs', () => {
+test('IP whitelist (soft mode) - protected routes allow whitelisted IPs', () => {
     const { guard, restore } = loadGuardWithEnv({
         IP_WHITELIST: '10.0.0.0/8',
         IP_WHITELIST_MODE: 'soft'
@@ -117,7 +117,7 @@ test('IP whitelist (soft mode) — protected routes allow whitelisted IPs', () =
     restore();
 });
 
-test('IP whitelist (strict mode) — public routes also enforced', () => {
+test('IP whitelist (strict mode) - public routes also enforced', () => {
     const { guard, restore } = loadGuardWithEnv({
         IP_WHITELIST: '10.0.0.0/8',
         IP_WHITELIST_MODE: 'strict'
@@ -134,7 +134,7 @@ test('IP whitelist (strict mode) — public routes also enforced', () => {
     restore();
 });
 
-test('Country block — rejects countries in blocklist', () => {
+test('Country block - rejects countries in blocklist', () => {
     const { guard, restore } = loadGuardWithEnv({ BLOCKED_COUNTRIES: 'ru,kp' });
     let nextCalled = false;
     const res = makeRes();

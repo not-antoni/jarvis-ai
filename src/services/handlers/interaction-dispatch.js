@@ -236,7 +236,7 @@ async function handleChannel(interaction, handler) {
 }
 
 /**
- * /role — manage which roles are blocked from triggering Jarvis AI chat.
+ * /role - manage which roles are blocked from triggering Jarvis AI chat.
  * Server owners and Administrator-permission users only. Reply is public so
  * the whole server can see who got added/removed.
  */
@@ -431,7 +431,7 @@ async function handle(handler, interaction) {
                 return;
             }
 
-            // Role-based AI blacklist — also gate the /jarvis slash entrypoint
+            // Role-based AI blacklist - also gate the /jarvis slash entrypoint
             // so blocked roles can't bypass the message-handler check.
             const member = interaction.member?.guild
                 ? interaction.member

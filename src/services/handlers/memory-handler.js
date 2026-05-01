@@ -55,8 +55,8 @@ async function handleMemoryCommand(handler, interaction) {
                 {
                     name: 'Preference',
                     value: isOptedOut
-                        ? 'Opted **out** — no long-term memories retained.'
-                        : 'Opted **in** — long-term memory active.',
+                        ? 'Opted **out** - no long-term memories retained.'
+                        : 'Opted **in** - long-term memory active.',
                     inline: true
                 },
                 { name: 'Interactions Logged', value: String(profile?.interactions ?? 0), inline: true }

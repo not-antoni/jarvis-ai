@@ -4,20 +4,20 @@
  * Edge security middleware (#262, #265, #266).
  *
  * Three layered checks, evaluated in order:
- *   1. ASN blocklist     — drop traffic from networks known for abuse.
+ *   1. ASN blocklist     - drop traffic from networks known for abuse.
  *                          Fed via the `cf-asn` (or `x-asn`) header that the
  *                          Cloudflare worker / transform rule attaches.
- *   2. Country blocklist  — drop traffic from disallowed regions, read from
+ *   2. Country blocklist  - drop traffic from disallowed regions, read from
  *                          `cf-ipcountry`.
- *   3. IP whitelist       — when configured, only these CIDRs may reach
+ *   3. IP whitelist       - when configured, only these CIDRs may reach
  *                          non-public routes (health/landing/assets stay
  *                          public so monitoring keeps working).
  *
  * Configure via env:
- *   BLOCKED_ASNS=14061,16276,3214        — comma-separated AS numbers
- *   BLOCKED_COUNTRIES=ru,kp,ir           — ISO 3166-1 alpha-2 codes
- *   IP_WHITELIST=1.2.3.4/32,5.6.0.0/16   — restrict admin/portal endpoints
- *   IP_WHITELIST_MODE=strict|soft        — strict applies to ALL routes
+ *   BLOCKED_ASNS=14061,16276,3214        - comma-separated AS numbers
+ *   BLOCKED_COUNTRIES=ru,kp,ir           - ISO 3166-1 alpha-2 codes
+ *   IP_WHITELIST=1.2.3.4/32,5.6.0.0/16   - restrict admin/portal endpoints
+ *   IP_WHITELIST_MODE=strict|soft        - strict applies to ALL routes
  *
  * Public read-only routes (`/`, `/portal`, static assets, /api/stats, /health,
  * /robots.txt, /sitemap.xml, OAuth flows) bypass the IP whitelist when mode is
@@ -84,7 +84,7 @@ function ipMatchesAny(ip, ranges) {
     if (!ip || !ranges?.length) {return false;}
     const normalized = ranges.map(range => {
         if (range.includes('/')) {return range;}
-        // Bare IP — treat as /32 (v4) or /128 (v6)
+        // Bare IP - treat as /32 (v4) or /128 (v6)
         return range.includes(':') ? `${range}/128` : `${range}/32`;
     });
     return isIpInRanges(ip, normalized);
@@ -98,7 +98,7 @@ function shouldEnforceWhitelist(req) {
 
 function createSecurityGuard() {
     function securityGuard(req, res, next) {
-        // ASN block — applied to every request when configured.
+        // ASN block - applied to every request when configured.
         if (BLOCKED_ASNS.size) {
             const asn = getAsn(req);
             if (asn && BLOCKED_ASNS.has(asn)) {
@@ -107,7 +107,7 @@ function createSecurityGuard() {
             }
         }
 
-        // Country block — applied to every request when configured.
+        // Country block - applied to every request when configured.
         if (BLOCKED_COUNTRIES.size) {
             const country = getCountry(req);
             if (country && BLOCKED_COUNTRIES.has(country)) {
@@ -116,7 +116,7 @@ function createSecurityGuard() {
             }
         }
 
-        // IP whitelist — applied based on mode.
+        // IP whitelist - applied based on mode.
         if (shouldEnforceWhitelist(req)) {
             const ip = getClientIp(req);
             if (!ip || !ipMatchesAny(ip, IP_WHITELIST)) {

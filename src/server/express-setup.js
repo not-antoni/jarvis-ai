@@ -102,7 +102,7 @@ function createExpressApp({ webhookRouter, database }) {
     app.use(compression());
 
     // ---- Helmet ----
-    // BIMI logo — must be publicly accessible before helmet locks headers down
+    // BIMI logo - must be publicly accessible before helmet locks headers down
     app.get('/assets/bimi.svg', (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');

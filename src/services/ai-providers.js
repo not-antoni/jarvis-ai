@@ -191,7 +191,7 @@ class AIProviderManager {
         // ---------- Groq providers (OpenAI-compatible) ----------
         // Auto-discover all GROQ_API_KEY, GROQ_API_KEY2, etc.
         const groqKeys = discoverEnvKeys('GROQ_API_KEY');
-        // Each Groq key gets multiple model providers — rate limits are per-model
+        // Each Groq key gets multiple model providers - rate limits are per-model
         const groqModels =[
             'llama-3.3-70b-versatile'
         ];
@@ -291,7 +291,7 @@ class AIProviderManager {
         // ---------- Google AI (native SDK) ----------
         // Auto-discover all GOOGLE_AI_API_KEY, GOOGLE_AI_API_KEY2, etc.
         const googleKeys = discoverEnvKeys('GOOGLE_AI_API_KEY');
-        // Each Google key gets multiple models — rate limits are per-model
+        // Each Google key gets multiple models - rate limits are per-model
         const googleModels = parseBooleanEnv(process.env.GOOGLE_AI_ENABLE_PREVIEW_MODELS, false)
             ?[...GOOGLE_STABLE_MODELS, ...GOOGLE_PREVIEW_MODELS]
             : GOOGLE_STABLE_MODELS;
@@ -415,7 +415,7 @@ class AIProviderManager {
 
         // ---------- Cloudflare Workers AI (via deployed worker) ----------
         // Uses AI_PROXY_TOKEN for authentication (same as other proxies)
-        // llama-3.1-8b removed — model too weak. Swap in a stronger CF model here if needed.
+        // llama-3.1-8b removed - model too weak. Swap in a stronger CF model here if needed.
         const cfWorkerUrl = process.env.CLOUDFLARE_WORKER_URL;
         const cfWorkerToken = process.env.AI_PROXY_TOKEN;
         if (cfWorkerUrl && cfWorkerToken) {
@@ -883,7 +883,7 @@ class AIProviderManager {
         userPrompt = userPrompt != null ? String(userPrompt) : '';
         // Load management: reject if over hard limit
         if (this.activeRequests >= this.loadConfig.rejectThreshold) {
-            throw new Error('System under heavy load — please try again in a moment, sir.');
+            throw new Error('System under heavy load - please try again in a moment, sir.');
         }
         // Track active requests
         this.activeRequests++;

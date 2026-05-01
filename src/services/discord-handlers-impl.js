@@ -73,7 +73,7 @@ class DiscordHandlers {
         this.maxMemberLogMessageLength = 400;
         this.defaultJoinMessages = [
             '🛰️ {mention} has entered {server}.',
-            '🎉 A new arrival! Welcome {mention} — population now {membercount}.',
+            '🎉 A new arrival! Welcome {mention} - population now {membercount}.',
             '🔔 {mention} just docked with {server}. Make them feel at home.',
             '✨ {mention} joined us. Jarvis registering their credentials now.'
         ];
@@ -407,7 +407,7 @@ class DiscordHandlers {
     async handleJarvisInteraction(message, client) {
         if (!this.canSendInChannel(message.channel)) {return;}
         // Trigger validation (mentions, wake words, reply-to-jarvis) already done
-        // by message-processing.js handleMessage() — the only caller.
+        // by message-processing.js handleMessage() - the only caller.
         if (message.author.bot) {
             console.log(`Bot interaction detected from ${message.author.username} (${message.author.id}): ${message.content.substring(0, 50)}...`);
         }
@@ -659,7 +659,7 @@ class DiscordHandlers {
                 const resolved = await Promise.all(channelDefs.map(([, key]) => this.resolveGuildChannel(guild, statsConfig[key])));
                 const lines = channelDefs.map(([label], i) => `${label}: ${resolved[i] ? `<#${resolved[i].id}>` : 'Missing'}`);
                 const fmt = serverStats.formatServerStatsValue;
-                lines.push(`Current totals — Members: ${fmt(stats.total)}, Users: ${fmt(stats.userCount)}, Bots: ${fmt(stats.botCount)}, Channels: ${fmt(stats.channelCount)}, Roles: ${fmt(stats.roleCount)}`);
+                lines.push(`Current totals - Members: ${fmt(stats.total)}, Users: ${fmt(stats.userCount)}, Bots: ${fmt(stats.botCount)}, Channels: ${fmt(stats.channelCount)}, Roles: ${fmt(stats.roleCount)}`);
                 await interaction.editReply(`Server statistics are active, sir.\n${lines.join('\n')}`);
                 return;
             }

@@ -5,7 +5,7 @@ const config = require('../../../config');
 /**
  * How long to bench a credential group after a daily-quota exhaustion
  * (Google 429 with "Limit: 0" / "billing details"). The old value of 30m
- * caused ~48 probe/day once a key ran out — each probe is itself a 429 and
+ * caused ~48 probe/day once a key ran out - each probe is itself a 429 and
  * can keep pushing the exhaustion forward. Two hours strikes a balance
  * between "give up for the day" and "retry occasionally in case the user
  * upgraded their plan". Override with PERMANENT_QUOTA_BENCH_MS.

@@ -20,7 +20,7 @@ const NOISE_WORDS = new Set([
     'music', 'applause', 'laughter', 'silence', 'inaudible'
 ]);
 
-const VOICE_HINT = '[Voice chat — reply in 1 short spoken sentence (max 2 if essential). No markdown, no lists, no asterisks, no emojis, no quote marks around the whole reply. Plain conversational speech only.]\n';
+const VOICE_HINT = '[Voice chat - reply in 1 short spoken sentence (max 2 if essential). No markdown, no lists, no asterisks, no emojis, no quote marks around the whole reply. Plain conversational speech only.]\n';
 
 function cleanForTts(text) {
     return text
@@ -46,7 +46,7 @@ function cleanForTts(text) {
         .replace(/^["'\u201C\u201D\u2018\u2019]+|["'\u201C\u201D\u2018\u2019]+$/g, '')
         // Replace symbols that don't read well aloud
         .replace(/&/g, ' and ')
-        .replace(/—/g, ', ')
+        .replace(/-/g, ', ')
         .replace(/\.{3,}/g, ', ')
         .replace(/\n{2,}/g, '. ')
         .replace(/\s{2,}/g, ' ')

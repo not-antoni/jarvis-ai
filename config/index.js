@@ -191,12 +191,12 @@ const rawConfig = {
     // Wake Words
     wakeWords: ['jarvis', 'garmin'],
 
-    // Admin Configuration — MUST be set via env var, no hardcoded fallback
+    // Admin Configuration - MUST be set via env var, no hardcoded fallback
     admin: {
         userId: (process.env.ADMIN_USER_ID || '').trim() || null
     },
 
-    // Command Restrictions — channel IDs loaded from env (comma-separated)
+    // Command Restrictions - channel IDs loaded from env (comma-separated)
     commands: {
         whitelistedChannelIds: (process.env.WHITELISTED_CHANNEL_IDS || '')
             .split(',').map(s => s.trim()).filter(Boolean)

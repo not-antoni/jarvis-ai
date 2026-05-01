@@ -59,7 +59,7 @@ async function run() {
             console.log(`[${migrationId}]`, ...messages);
         };
 
-        console.log(`Applying ${migrationId}${description ? ` — ${description}` : ''}`);
+        console.log(`Applying ${migrationId}${description ? ` - ${description}` : ''}`);
 
         await migration.up({ db, database, config, logger });
         await migrationsCollection.insertOne({

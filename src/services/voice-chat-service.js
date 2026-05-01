@@ -96,7 +96,7 @@ class VoiceChatService {
         const opusStatus = this._getOpusDecoderBackend();
         if (nvidiaSpeech.enabled) {
             console.log(
-                `[VoiceChat] Ready — STT: ${sttStatus}, ` +
+                `[VoiceChat] Ready - STT: ${sttStatus}, ` +
                 `TTS: ${nvidiaSpeech.ttsEnabled ? 'on' : 'off'}, ` +
                 `Opus: ${opusStatus}`
             );
@@ -274,7 +274,7 @@ class VoiceChatService {
     handleVoiceStateUpdate(oldState, newState) {
         const botId = this.client?.user?.id;
 
-        // Bot's own state changed — auto-attach/detach STT
+        // Bot's own state changed - auto-attach/detach STT
         if (newState.member?.id === botId) {
             const hasSession = this.sessions.has(newState.guild.id);
             console.log(`[VoiceChat] Bot voiceState: old=${oldState.channelId} new=${newState.channelId} hasSession=${hasSession}`);
@@ -457,7 +457,7 @@ class VoiceChatService {
                 const profile = await col.findOne({ userId }, { projection: { 'preferences.memoryOpt': 1 } });
                 optedOut = String(profile?.preferences?.memoryOpt ?? 'opt-in').toLowerCase() === 'opt-out';
             }
-        } catch { /* db down — default to allowed */ }
+        } catch { /* db down - default to allowed */ }
 
         this._optOutCache.set(userId, { optedOut, ts: Date.now() });
         return optedOut;
@@ -494,7 +494,7 @@ class VoiceChatService {
                 if (packets.length >= MIN_PACKETS) {
                     this._ingest(session, userId, packets).catch(() => {});
                 }
-                console.warn(`[VoiceChat] Safety timeout — stream hung for ${userInfo.displayName}`);
+                console.warn(`[VoiceChat] Safety timeout - stream hung for ${userInfo.displayName}`);
             }, STREAM_SAFETY_MS);
             safetyTimer.unref();
 
@@ -528,8 +528,8 @@ class VoiceChatService {
     }
 
     // ─── Processing Pipeline ─────────────────────────────────────────────────
-    // Phase 1 (_ingest): runs in PARALLEL per speaker — decode, STT, wake word
-    // Phase 2 (_respond): runs SEQUENTIALLY — AI generation, TTS, playback
+    // Phase 1 (_ingest): runs in PARALLEL per speaker - decode, STT, wake word
+    // Phase 2 (_respond): runs SEQUENTIALLY - AI generation, TTS, playback
 
     async _ingest(session, userId, packets) {
         const capturedAt = Date.now();
@@ -538,11 +538,11 @@ class VoiceChatService {
             this._expireActiveSpeakerLock(session, capturedAt);
 
             if (isCpuThrottled()) {
-                console.warn(`[VoiceChat] CPU throttled (${getCpuFreqMHz()}MHz) — skipping STT`);
+                console.warn(`[VoiceChat] CPU throttled (${getCpuFreqMHz()}MHz) - skipping STT`);
                 return;
             }
 
-            // Opted-out users get zero voice processing — no audio sent anywhere
+            // Opted-out users get zero voice processing - no audio sent anywhere
             if (await this._isOptedOut(userId)) return;
 
             const pcm = this._decodeOpus(packets);
@@ -561,7 +561,7 @@ class VoiceChatService {
 
             let text = null;
 
-            // Always require "jarvis" — no implicit follow-ups
+            // Always require "jarvis" - no implicit follow-ups
             const cooldownKey = `${session.guildId}:${userId}`;
             const lastFailedProbe = this._probeCooldowns.get(cooldownKey) || 0;
             if (capturedAt - lastFailedProbe < PROBE_COOLDOWN_MS) {
@@ -613,7 +613,7 @@ class VoiceChatService {
     async _drainResponseQueue(session) {
         if (session.responding) {
             if (Date.now() - session.respondingStartedAt > PROCESS_SAFETY_MS) {
-                console.warn('[VoiceChat] Response stuck — force reset');
+                console.warn('[VoiceChat] Response stuck - force reset');
                 session.respondingGeneration++;
                 session.responding = false;
             } else {
@@ -640,7 +640,7 @@ class VoiceChatService {
             // Hint goes to AI context but NOT saved to memory
             const waiting = session.responseQueue.length;
             const hint = waiting > 0
-                ? '[Voice chat — reply in 1 short sentence. Others are waiting. No markdown, no lists.]\n'
+                ? '[Voice chat - reply in 1 short sentence. Others are waiting. No markdown, no lists.]\n'
                 : VOICE_HINT;
 
             const reply = await this._askJarvis(session, userId, text, hint);

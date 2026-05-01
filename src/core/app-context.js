@@ -1,5 +1,5 @@
 /**
- * Shared application context — replaces global.discordClient, global.discordHandlers,
+ * Shared application context - replaces global.discordClient, global.discordHandlers,
  * global.jarvisWarnings, and global.sentientThinkQueue.
  *
  * Usage:

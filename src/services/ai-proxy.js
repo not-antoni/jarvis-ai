@@ -503,7 +503,7 @@ function createProxyingFetch() {
         return order;
     }
 
-    // Capture original fetch once at creation time — safe against global.fetch monkey-patching
+    // Capture original fetch once at creation time - safe against global.fetch monkey-patching
     const baseFetch = global.fetch;
     if (typeof baseFetch !== 'function') {
         throw new Error('Global fetch is not available in this Node runtime.');
@@ -617,7 +617,7 @@ function createProxyingFetch() {
 
         const PROXY_ATTEMPT_TIMEOUT_MS = 7_000; // covers p95 (3.9s) with headroom; fail fast beyond that
         const PROXY_PHASE_BUDGET_MS = 7_000;   // try ONE proxy seriously, then fall back to direct
-        const MAX_PROXY_ATTEMPTS = 1;          // don't cycle — all workers hit the same provider
+        const MAX_PROXY_ATTEMPTS = 1;          // don't cycle - all workers hit the same provider
 
         const buildRequestForUrl = (nextUrl, extraHeaders, signal) => {
             const headers = mergeHeaders(baseRequest.headers, extraHeaders);
@@ -650,7 +650,7 @@ function createProxyingFetch() {
 
         const maxAttempts = Math.min(attemptOrder.length, MAX_PROXY_ATTEMPTS);
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-            // Bail if proxy phase budget exhausted — save time for direct fallback
+            // Bail if proxy phase budget exhausted - save time for direct fallback
             if (Date.now() - proxyPhaseStart >= PROXY_PHASE_BUDGET_MS) {
                 if (config.debug) {
                     console.log(`[AIProxy] ${hostname} proxy phase budget exhausted after ${attempt} attempts; falling back`);
@@ -749,7 +749,7 @@ function startWorkerWarming() {
     const urls = config.proxyUrls;
     if (!urls.length || !config.enabled) {return;}
 
-    const WARM_INTERVAL_MS = 45_000; // ping every 45s — CF free workers cold-start after ~30s idle
+    const WARM_INTERVAL_MS = 45_000; // ping every 45s - CF free workers cold-start after ~30s idle
     _warmInterval = setInterval(() => {
         for (const proxyBase of urls) {
             // A GET with no ?url= returns 400 but still warms the worker

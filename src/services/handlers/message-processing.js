@@ -39,7 +39,7 @@ if (await isGuildUserBlacklisted(message.guild.id, message.author.id)) {
     return;
 }
 
-// Role-based AI blacklist — silently ignore messages from members who hold
+// Role-based AI blacklist - silently ignore messages from members who hold
 // any role configured via /role. Slash commands and other modules still work.
 if (message.member && await isMemberAiBlacklistedByRole(message.member)) {
     return;
@@ -100,7 +100,7 @@ const normalizedContent = rawContent.toLowerCase();
 const strippedContent = stripDiscordFormatting(rawContent);
 let containsWakeWord = false;
 
-// Check for custom guild/user wake words FIRST — if a guild has a custom
+// Check for custom guild/user wake words FIRST - if a guild has a custom
 // wake word, it REPLACES the defaults (jarvis/garmin) for that server.
 let customWakeWordTriggered = false;
 let guildHasCustomWakeWord = false;

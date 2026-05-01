@@ -13,7 +13,7 @@ function getBlockedAiRoleIds(guildConfig) {
  * Returns true if the given guild member holds at least one role that is
  * blacklisted from triggering Jarvis AI chat. Bot owners always bypass.
  *
- * Slash commands and other modules are not affected — this only gates the
+ * Slash commands and other modules are not affected - this only gates the
  * conversational AI (mentions, replies, wake-words, /jarvis prompts).
  */
 async function isMemberAiBlacklistedByRole(member) {

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Web portal — Discord OAuth login + per-guild config dashboard.
+ * Web portal - Discord OAuth login + per-guild config dashboard.
  *
  * Routes
  *   GET  /portal                            SPA shell

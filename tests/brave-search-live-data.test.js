@@ -7,7 +7,7 @@ const { detectSearchPlan, detectSearchIntent } = require('../src/services/brave-
 // #259 follow-up: live financial / market data must trigger search so the
 // model never hallucinates a price (the "800 BC gold price" bug).
 
-test('detectSearchPlan — price/score/value queries trigger search via the general current-intent regex', () => {
+test('detectSearchPlan - price/score/value queries trigger search via the general current-intent regex', () => {
     // We intentionally do NOT hardcode topic-specific keyword lists (gold,
     // silver, btc, …); the heuristic should trip on the *kind* of word
     // ("price", "rate", "score", "latest") so it generalises to any topic.
@@ -27,12 +27,12 @@ test('detectSearchPlan — price/score/value queries trigger search via the gene
     }
 });
 
-test('detectSearchPlan — generic chit-chat without live-data words stays null', () => {
+test('detectSearchPlan - generic chit-chat without live-data words stays null', () => {
     assert.equal(detectSearchPlan('how are you doing'), null);
     assert.equal(detectSearchPlan('tell me a joke'), null);
 });
 
-test('detectSearchIntent — surfaces a usable query for price prompts', () => {
+test('detectSearchIntent - surfaces a usable query for price prompts', () => {
     const intent = detectSearchIntent('tell me gold price');
     assert.ok(intent && /gold/i.test(intent), `expected gold-related intent, got ${intent}`);
 });

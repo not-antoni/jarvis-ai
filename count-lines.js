@@ -285,7 +285,7 @@ async function walkDir(root, opts, result) {
   dirList.sort((a,b) => b.totalLines - a.totalLines || b.totalBytes - a.totalBytes);
 
   for (const d of dirList) {
-    console.log(`\nDirectory: ${d.dir}  —  ${d.files.length} file(s)  |  lines: ${d.totalLines}  |  bytes: ${d.totalBytes}`);
+    console.log(`\nDirectory: ${d.dir}  -  ${d.files.length} file(s)  |  lines: ${d.totalLines}  |  bytes: ${d.totalBytes}`);
     console.log('-'.repeat(80));
     // print each file as: lines | bytes | mtime | relative path
     for (const f of d.files) {
@@ -296,7 +296,7 @@ async function walkDir(root, opts, result) {
 
   // Overall top list
   console.log('\n' + '='.repeat(80));
-  console.log('ALL FILES (overall) — biggest → smaller by chosen sort');
+  console.log('ALL FILES (overall) - biggest → smaller by chosen sort');
   console.log('-'.repeat(80));
   for (const f of overall) {
     const mtime = new Date(f.mtimeMs).toISOString().replace('T',' ').replace('Z','');

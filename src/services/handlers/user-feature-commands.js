@@ -193,7 +193,7 @@ async function handleWakewordCommand(handler, interaction) {
                 await userFeatures.removeGuildWakeWord(guildId);
                 const defaultsDisabled = await userFeatures.isGuildWakeWordsDisabled(guildId);
                 await interaction.editReply(defaultsDisabled
-                    ? 'Server wake word removed. Defaults are still off — I\'ll only respond to personal wake words or mentions.'
+                    ? 'Server wake word removed. Defaults are still off - I\'ll only respond to personal wake words or mentions.'
                     : 'Server wake word removed. Back to the defaults ("jarvis" / "garmin").');
                 return;
             }

@@ -56,7 +56,7 @@ const _sysInfo = (() => {
 })();
 
 async function handlePing(interaction) {
-    // No editReply roundtrip — send the embed directly to save bot quota.
+    // No editReply roundtrip - send the embed directly to save bot quota.
     // RT latency is approximated from interaction creation to send time.
     const apiLatency = Math.round(interaction.client.ws.ping);
     const roundtripLatency = Math.max(0, Date.now() - interaction.createdTimestamp);

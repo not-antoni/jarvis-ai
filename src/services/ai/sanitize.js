@@ -4,7 +4,7 @@
 // stego payloads, or copy-paste exfiltration. Stripped from every AI output and
 // from anything we feed into memory or system prompts (#273).
 // Combining-character ranges like FE00-FE0F (variation selectors) are
-// intentional — we WANT to scrub them; lint heuristic doesn't apply here.
+// intentional - we WANT to scrub them; lint heuristic doesn't apply here.
 // eslint-disable-next-line no-misleading-character-class
 const INVISIBLE_UNICODE_RE = /[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0\uFFF9-\uFFFB]/g;
 // Astral-plane invisibles: tag chars (E0000-E007F) + variation selectors supplement (E0100-E01EF)
@@ -80,7 +80,7 @@ function stripWrappingQuotes(text) {
         if (!trimmed.startsWith(start) || !trimmed.endsWith(end)) {continue;}
         if (trimmed.length < start.length + end.length + 2) {continue;}
         const inner = trimmed.slice(start.length, trimmed.length - end.length);
-        // Refuse to strip if the content has internal quotes — likely a real quotation.
+        // Refuse to strip if the content has internal quotes - likely a real quotation.
         if (start === end) {
             const occurrences = trimmed.split(start).length - 1;
             if (occurrences !== 2) {continue;}

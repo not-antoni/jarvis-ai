@@ -214,7 +214,7 @@ async function handleTimeout(interaction, handler) {
             targetId: target.id,
             durationMs: ms
         });
-        const reasonText = reason ? ` — ${reason}` : '';
+        const reasonText = reason ? ` - ${reason}` : '';
         await interaction.editReply({
             content: `⏲️ Timed out ${target.user} for **${formatDuration(ms)}**${reasonText}, sir.`
         });
@@ -300,7 +300,7 @@ async function handleBan(interaction, handler) {
             targetId: targetUser.id,
             deleteDays
         });
-        const reasonText = reason ? ` — ${reason}` : '';
+        const reasonText = reason ? ` - ${reason}` : '';
         await interaction.editReply({
             content: `🔨 Banned **${targetUser.tag || targetUser.username}** (\`${targetUser.id}\`)${reasonText}, sir.`
         });
@@ -340,7 +340,7 @@ async function handleKick(interaction, handler) {
             actorId: gate.member.id,
             targetId: target.id
         });
-        const reasonText = reason ? ` — ${reason}` : '';
+        const reasonText = reason ? ` - ${reason}` : '';
         await interaction.editReply({
             content: `👢 Kicked ${target.user}${reasonText}, sir.`
         });
@@ -393,7 +393,7 @@ async function handleUnban(interaction, handler) {
             targetId: userId
         });
         const tag = ban.user?.tag || ban.user?.username || userId;
-        const reasonText = reason ? ` — ${reason}` : '';
+        const reasonText = reason ? ` - ${reason}` : '';
         await interaction.editReply({
             content: `🕊️ Unbanned **${tag}** (\`${userId}\`)${reasonText}, sir.`
         });

@@ -25,9 +25,9 @@ const TIER3_ACTION = (process.env.WARN_TIER3_ACTION || 'kick').toLowerCase();
 const TIER_WINDOW_MS = Number(process.env.WARN_WINDOW_MS) || 30 * 24 * 60 * 60_000;
 
 function formatWarningLine(w) {
-    const date = w.createdAt ? new Date(w.createdAt).toISOString().slice(0, 10) : '—';
+    const date = w.createdAt ? new Date(w.createdAt).toISOString().slice(0, 10) : '-';
     const moderator = w.moderatorId ? `<@${w.moderatorId}>` : 'unknown';
-    const reason = (w.reason || '—').replace(/\n/g, ' ').slice(0, 140);
+    const reason = (w.reason || '-').replace(/\n/g, ' ').slice(0, 140);
     return `\`${w.id}\` · <@${w.userId}> · ${date} · by ${moderator}\n   ${reason}`;
 }
 
@@ -140,7 +140,7 @@ async function handleWarnAdd(interaction, gate) {
             content: `You received a warning in **${interaction.guild.name}** from ${gate.member.user}.\n> ${reason.slice(0, 500)}`
         });
     } catch {
-        // user has DMs closed — silent
+        // user has DMs closed - silent
     }
 }
 

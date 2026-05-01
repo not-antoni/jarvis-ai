@@ -6,7 +6,7 @@
  */
 
 const roastTemplates = [
-    '{target} — the human equivalent of a CAPTCHA. Everyone has to deal with you, nobody enjoys it.',
+    '{target} - the human equivalent of a CAPTCHA. Everyone has to deal with you, nobody enjoys it.',
     'I ran a diagnostic on {target}. The prognosis is chronic mediocrity with no known cure.',
     '{target} has the confidence of someone who\'s never seen their own search history.',
     'If {target} were a file type, they\'d be a .tmp. Disposable. Nobody knows why they\'re there.',

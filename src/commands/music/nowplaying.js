@@ -88,7 +88,7 @@ module.exports = {
         const interval = setInterval(async() => {
             refreshes += 1;
             const latest = manager.getNowPlaying(interaction.guildId);
-            // Track finished or changed — final flush then stop.
+            // Track finished or changed - final flush then stop.
             if (!latest || latest.startedAt !== initialTrackStartedAt) {
                 clearInterval(interval);
                 try {

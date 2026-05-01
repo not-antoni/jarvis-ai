@@ -102,7 +102,7 @@ function buildHelpPayload(guildConfig = null) {
 
         const lines = visible.map(command => {
             const label = command.name.startsWith('/') ? command.name : `/${command.name}`;
-            return `• **${label}** — ${command.description}`;
+            return `• **${label}** - ${command.description}`;
         });
 
         let value = lines.join('\n');

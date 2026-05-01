@@ -82,7 +82,7 @@ function resolveAutocompleteSelection(value) {
 function buildSoundCloudChoice(track) {
     const title = String(track?.title || 'SoundCloud Track').trim();
     const meta = [track?.uploader, track?.duration].filter(Boolean).join(' • ');
-    const name = clampChoiceText(meta ? `${title} — ${meta}` : title, 100);
+    const name = clampChoiceText(meta ? `${title} - ${meta}` : title, 100);
     const rawValue = String(track?.url || '').trim();
     const value = rawValue.length > 0
         ? rememberAutocompleteSelection(rawValue, 'soundcloud')
@@ -98,7 +98,7 @@ function buildSoundCloudChoice(track) {
 function buildYouTubeChoice(video) {
     const title = String(video?.title || 'YouTube Video').trim();
     const channel = video?.channel || '';
-    const name = clampChoiceText(channel ? `${title} — ${channel}` : title, 100);
+    const name = clampChoiceText(channel ? `${title} - ${channel}` : title, 100);
     const value = rememberAutocompleteSelection(video?.url, 'youtube');
 
     if (!name || !value || value.length > 100) {

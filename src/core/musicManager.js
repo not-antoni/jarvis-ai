@@ -316,7 +316,7 @@ class MusicManager {
         state.skipInProgress = true;
         state.player.stop(true);
         if (!upcoming) {
-            return '⏭️ Skipped — queue empty. Staying connected.';
+            return '⏭️ Skipped - queue empty. Staying connected.';
         }
         state.loopMode = loopBeforeSkip;
         return `⏭️ Skipping to **${upcoming.title}**…`;
@@ -423,7 +423,7 @@ class MusicManager {
         };
     }
     /**
-     * Snapshot for /nowplaying — includes timing info for progress bars.
+     * Snapshot for /nowplaying - includes timing info for progress bars.
      * Returns null when nothing is playing.
      */
     getNowPlaying(guildId) {
@@ -759,7 +759,7 @@ class MusicManager {
                 }
             }
         }
-        // All rejoin attempts failed — rebuild the connection from scratch.
+        // All rejoin attempts failed - rebuild the connection from scratch.
         // This handles cases where the Discord media server is unreachable
         // (DNS failure, server rotation, etc.) and rejoin keeps hitting the dead endpoint.
         const voiceChannel = state.voiceChannelId

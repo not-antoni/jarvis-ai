@@ -4,10 +4,10 @@
  * Discord OAuth2 helpers for the web portal.
  *
  * Flow:
- *   1. `getAuthorizeUrl({ state })` — builds the Discord consent URL
- *   2. `exchangeCode({ code })` — swaps an authorization code for an access token
- *   3. `fetchUser(accessToken)` — returns the Discord user payload
- *   4. `fetchUserGuilds(accessToken)` — returns guilds the user is in
+ *   1. `getAuthorizeUrl({ state })` - builds the Discord consent URL
+ *   2. `exchangeCode({ code })` - swaps an authorization code for an access token
+ *   3. `fetchUser(accessToken)` - returns the Discord user payload
+ *   4. `fetchUserGuilds(accessToken)` - returns guilds the user is in
  *
  * Environment:
  *   DISCORD_CLIENT_ID       (required, falls back to CLIENT_ID)
