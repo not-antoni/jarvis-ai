@@ -31,7 +31,7 @@ Tier mapping in `src/services/ai-providers-execution.js`:
 ================IMPLEMENT AGENT CALLING===================
 opencode run "create a folder named 'balls' on my desktop"
 
-ollama launch claude --model qwen3.5:cloud --yes -- -p "create a folder named 'balls' on my desktop" --dangerously-skip-permissions
+ollama launch claude --model qwen3-coder-next:cloud --yes -- -p "create a folder named 'balls' on my desktop" --dangerously-skip-permissions
 
 GEMINI_CLI_TRUST_WORKSPACE=true gemini -p "create a folder named 'balls' on my desktop" --skip-trust
 
