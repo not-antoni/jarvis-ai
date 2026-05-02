@@ -22,7 +22,15 @@ const { parseBooleanEnv } = require('../utils/parse-bool-env');
 
 const WEB_SEARCH_ENABLED = parseBooleanEnv(process.env.WEB_SEARCH_AUTO, true);
 const WEB_SEARCH_TIMEOUT_MS = Number(process.env.WEB_SEARCH_TIMEOUT_MS) || 3500;
-const WEB_SEARCH_MAX_RESULTS = Math.min(Math.max(Number(process.env.WEB_SEARCH_MAX_RESULTS) || 3, 1), 5);
+const WEB_SEARCH_MAX_RESULTS = Math.min(Math.max(Number(process.env.WEB_SEARCH_MAX_RESULTS) || 10, 10), 10);
+
+/**
+ * Vision-to-search prepass disabled.
+ * Now it just returns the user input directly without triggering searches for images.
+ */
+async function buildSearchSeed(userInput, images) {
+    return userInput;
+}
 
 /**
  * Runs a conditional web search based on a heuristic. Returns a ready-to-splice
@@ -30,10 +38,26 @@ const WEB_SEARCH_MAX_RESULTS = Math.min(Math.max(Number(process.env.WEB_SEARCH_M
  * never blocks the pipeline on failure.
  */
 async function maybeBuildWebSearchBlock(userInput, { voice = false } = {}) {
-    if (!WEB_SEARCH_ENABLED || voice || !braveSearch.isConfigured()) {return null;}
+    if (!WEB_SEARCH_ENABLED) {
+        console.warn('[WebSearch] SKIP: disabled via WEB_SEARCH_AUTO=false');
+        return null;
+    }
+    if (voice) {
+        console.warn('[WebSearch] SKIP: voice mode');
+        return null;
+    }
+    if (!braveSearch.isConfigured()) {
+        console.warn('[WebSearch] SKIP: no BRAVE_SEARCH_API_KEY / BRAVE_API_KEY in env');
+        return null;
+    }
 
     const plan = braveSearch.detectSearchPlan(userInput);
-    if (!plan) {return null;}
+    if (!plan) {
+        console.warn('[WebSearch] SKIP: heuristic found no searchable intent in:', JSON.stringify(userInput.slice(0, 120)));
+        return null;
+    }
+
+    console.log('[WebSearch] Searching mode=' + plan.mode + ' query="' + plan.query + '"');
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), WEB_SEARCH_TIMEOUT_MS);
@@ -41,7 +65,7 @@ async function maybeBuildWebSearchBlock(userInput, { voice = false } = {}) {
 
     try {
         outcome = await braveSearch.searchByIntent(userInput, {
-            count: plan.mode === 'image' ? Math.max(WEB_SEARCH_MAX_RESULTS, 5) : WEB_SEARCH_MAX_RESULTS,
+            count: WEB_SEARCH_MAX_RESULTS,
             signal: controller.signal
         });
     } catch (error) {
@@ -51,7 +75,11 @@ async function maybeBuildWebSearchBlock(userInput, { voice = false } = {}) {
         clearTimeout(timer);
     }
 
-    if (!outcome?.ok || !outcome.results?.length) {return null;}
+    if (!outcome?.ok || !outcome.results?.length) {
+        console.warn('[WebSearch] No usable results:', outcome?.reason || 'empty result set');
+        return null;
+    }
+    console.log('[WebSearch] Got ' + (outcome.results?.length || 0) + ' result(s) for "' + (outcome.rewrittenQuery || outcome.query) + '"');
 
     const searchLabel = outcome.rewrittenQuery && outcome.rewrittenQuery !== outcome.query
         ? `${outcome.query} → ${outcome.rewrittenQuery}`
@@ -265,7 +293,7 @@ class JarvisAI {
                         interaction
                             .followUp({
                                 content: 'https://tenor.com/view/shocked-shocked-cat-silly-cat-cat-kitten-gif-7414586676150300212',
-                                allowedMentions: { parse: [] }
+                                allowedMentions: { parse:[] }
                             })
                             .catch(err => console.warn('[StatusCheck] followUp failed:', err.message));
                     }, 3000).unref?.();
@@ -323,7 +351,7 @@ class JarvisAI {
                     ? `<t:${Math.floor(new Date(profile.lastSeen).getTime() / 1000)}:R>`
                     : 'unknown';
 
-                return [
+                return[
                     `**Jarvis dossier for ${profile.name || userName}**`,
                     `• Introduced: <t:${Math.floor(new Date(profile.firstMet).getTime() / 1000)}:F>`,
                     `• Last seen: ${lastSeen}`,
@@ -454,14 +482,14 @@ class JarvisAI {
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
 
-            let secureMemories = [];
+            let secureMemories =[];
             const memoryLimit = 50;
             if (allowsLongTermMemory) {
                 secureMemories = await vaultClient
                     .decryptMemories(userId, { limit: memoryLimit })
                     .catch(error => {
                         console.error('Secure memory retrieval failed for user', userId, error);
-                        return [];
+                        return[];
                     });
             }
             const allEntries =
@@ -469,7 +497,7 @@ class JarvisAI {
                     ? secureMemories.filter(
                         entry => !isInternalRecoveryResponse(entry?.data?.jarvisResponse)
                     )
-                    : [];
+                    :[];
 
             // RAG: select a mix of recent + keyword-relevant memories
             const conversationEntries = selectRelevantMemories(allEntries, userInput, 10, 15);
@@ -507,7 +535,7 @@ class JarvisAI {
                         .slice(-5)
                         .filter(m => m.id !== interaction.id);
                     if (sorted.length > 0) {
-                        const lines = [];
+                        const lines =[];
                         for (const m of sorted) {
                             const isBotMsg = m.author?.id === interaction.client?.user?.id;
                             if (!isBotMsg && m.author?.id !== userId) {
@@ -548,7 +576,11 @@ class JarvisAI {
 
             // Conditional web search - only when heuristic matches and Brave is configured.
             // Failure is silent; we never block the AI response on search latency.
-            const webSearch = await maybeBuildWebSearchBlock(userInput, { voice: Boolean(options.voice) });
+            // Vision prepass: if images are attached, extract image-derived search metadata
+            // first so Brave's heuristic sees the full intent (text + image context).
+            // The final multimodal answer still receives the original images separately.
+            const searchSeed = await buildSearchSeed(userInput, images);
+            const webSearch = await maybeBuildWebSearchBlock(searchSeed, { voice: Boolean(options.voice) });
             if (webSearch) {
                 contextPrefix = `${webSearch.block}\n\n${contextPrefix}`;
                 const webSearchAnchor = loadWebSearchAnchor();
@@ -637,7 +669,7 @@ ${contextPrefix}${sanitizedInput}`;
     }
 
     getFallbackResponse(userInput, userName) {
-        const responses = [
+        const responses =[
             `Running on fumes here, ${userName}. Give me a second.`,
             `Hit a wall on that one, ${userName}. Still here though.`,
             `Systems are being difficult, ${userName}. Bear with me.`,

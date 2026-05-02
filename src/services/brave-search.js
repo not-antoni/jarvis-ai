@@ -135,7 +135,7 @@ function sanitizeUrl(url) {
     try {
         const parsed = new URL(url);
         parsed.hash = '';
-        for (const key of [...parsed.searchParams.keys()]) {
+        for (const key of[...parsed.searchParams.keys()]) {
             if (/^(utm_|fbclid$|gclid$|yclid$|ref$|ref_src$|spm$)/i.test(key)) {
                 parsed.searchParams.delete(key);
             }
@@ -164,7 +164,7 @@ function extractUrlCandidate(value) {
 }
 
 function extractImageUrl(item) {
-    const candidates = [
+    const candidates =[
         item?.image?.url,
         item?.imageUrl,
         item?.image_url,
@@ -193,7 +193,7 @@ function extractImageUrl(item) {
 }
 
 function extractThumbnailUrl(item) {
-    const candidates = [
+    const candidates =[
         item?.thumbnail?.url,
         item?.thumbnailUrl,
         item?.thumbnail_url,
@@ -252,30 +252,39 @@ function rewriteSearchQuery(prompt, { mode = 'web', forceGif = false } = {}) {
 function detectSearchPlan(prompt) {
     if (typeof prompt !== 'string') { return null; }
     const text = prompt.trim();
-    if (text.length < 4 || text.length > 500) { return null; }
+    if (text.length < 4 || text.length > 1000) { return null; }
 
-    const lower = text.toLowerCase();
-    const gifIntent = GIF_HINTS.test(lower);
-    const imageIntent = gifIntent || IMAGE_HINTS.test(lower);
+    // For heuristic matching, only look at the first 500 chars so injected
+    // [IMAGE_CONTEXT] blocks and other prefixes don't silently kill detection.
+    const matchText = text.slice(0, 500);
+
+    const lower = matchText.toLowerCase();
+    
+    // DISABLED: Image and GIF intents are turned off
+    const gifIntent = false;
+    const imageIntent = false;
+    
     const videoIntent = VIDEO_HINTS.test(lower);
-    const yearIntent = YEAR_HINT.test(text);
+    const yearIntent = YEAR_HINT.test(matchText);
     const currentIntent = CURRENT_HINTS.test(lower) || yearIntent;
-    const memeIntent = MEME_HINTS.test(lower) || looksLikeMemeFragment(text);
-    const startsWithQuestion = /^(who|what|when|where|why|how|which)\b/i.test(text);
-    const contentTokens = tokenize(text).filter(tok => !STOP_WORDS.has(tok));
-    const questionLike = startsWithQuestion && (text.includes('?') || contentTokens.length >= 3);
+    const memeIntent = MEME_HINTS.test(lower) || looksLikeMemeFragment(matchText);
+    const startsWithQuestion = /^(who|what|when|where|why|how|which)\b/i.test(matchText);
+    const contentTokens = tokenize(matchText).filter(tok => !STOP_WORDS.has(tok));
+    // Lowered threshold: 2 content tokens is enough
+    const questionLike = startsWithQuestion && (matchText.includes('?') || contentTokens.length >= 2);
     const phraseLooksLookup = /\b(?:means|definition of|meaning of|price of|value of|status of|how many|how much|how old|how tall)\b/i.test(lower);
     const explicitSearch = /(?:^|\s)(?:search|google|bing|lookup|look\s+(?:it|that|this)?\s*up|find\s+(?:me\s+)?(?:info|out|about|on)|brave\s*search|web\s*search|search\s*the\s*web|research)\b/i.test(lower);
-    const properNounLookup = startsWithQuestion && PROPER_NOUN_HINT.test(text);
+    const properNounLookup = startsWithQuestion && PROPER_NOUN_HINT.test(matchText);
 
-    if (!explicitSearch && !questionLike && !phraseLooksLookup && !currentIntent && !imageIntent && !videoIntent && !properNounLookup && !memeIntent) {
+    // Image intent checks removed
+    if (!explicitSearch && !questionLike && !phraseLooksLookup && !currentIntent && !videoIntent && !properNounLookup && !memeIntent) {
         return null;
     }
 
-    const mode = imageIntent ? 'image' : 'web';
+    const mode = 'web'; // Force web mode
     const query = memeIntent && !explicitSearch
         ? `${rewriteSearchQuery(text, { mode: 'web' }) || text} meme`
-        : rewriteSearchQuery(text, { mode, forceGif: gifIntent });
+        : rewriteSearchQuery(text, { mode: 'web' });
 
     if (!query) { return null; }
 
@@ -330,7 +339,7 @@ function dedupeAndRankWeb(results, query) {
     const queryTerms = [...buildKeywordSet(query)];
     const exactQuery = normalizeQuery(query);
     const seen = new Set();
-    const normalized = [];
+    const normalized =[];
 
     for (const item of results) {
         const url = sanitizeUrl(item?.url || '');
@@ -365,7 +374,7 @@ function dedupeAndRankImages(results, query, { gifIntent = false } = {}) {
     const queryTerms = [...buildKeywordSet(query)];
     const exactQuery = normalizeQuery(query);
     const seen = new Set();
-    const normalized = [];
+    const normalized =[];
 
     for (const item of results) {
         const mediaUrl = sanitizeUrl(extractImageUrl(item) || item?.url || '');
@@ -453,7 +462,7 @@ async function fetchWithRetry(url, { signal = null, headers = {}, retries = 2 } 
             }
 
             const body = await res.text().catch(() => '');
-            const retryable = [408, 429, 500, 502, 503, 504].includes(res.status);
+            const retryable =[408, 429, 500, 502, 503, 504].includes(res.status);
             lastError = new Error(`Brave API returned ${res.status}`);
             lastError.status = res.status;
             lastError.body = body.slice(0, 200);
@@ -484,12 +493,12 @@ async function fetchWithRetry(url, { signal = null, headers = {}, retries = 2 } 
 async function searchWeb(query, { count = DEFAULT_COUNT, signal = null, freshness = null } = {}) {
     const apiKey = getApiKey();
     if (!apiKey) {
-        return { ok: false, reason: 'Brave Search API key not configured', results: [] };
+        return { ok: false, reason: 'Brave Search API key not configured', results:[] };
     }
 
     const cleanQuery = String(query || '').trim();
     if (!cleanQuery) {
-        return { ok: false, reason: 'Empty query', results: [] };
+        return { ok: false, reason: 'Empty query', results:[] };
     }
 
     const safeCount = Math.max(1, Math.min(Number(count) || DEFAULT_COUNT, MAX_WEB_COUNT));
@@ -530,11 +539,11 @@ async function searchWeb(query, { count = DEFAULT_COUNT, signal = null, freshnes
                 body: body.slice(0, 200),
                 query: rewrittenQuery
             });
-            return { ok: false, reason: `Brave API returned ${res.status}`, results: [] };
+            return { ok: false, reason: `Brave API returned ${res.status}`, results:[] };
         }
 
         const data = await res.json();
-        const webResults = Array.isArray(data?.web?.results) ? data.web.results : Array.isArray(data?.results) ? data.results : [];
+        const webResults = Array.isArray(data?.web?.results) ? data.web.results : Array.isArray(data?.results) ? data.results :[];
         const ranked = dedupeAndRankWeb(webResults, rewrittenQuery).slice(0, safeCount);
         const results = ranked.map(item => ({
             kind: 'web',
@@ -559,19 +568,19 @@ async function searchWeb(query, { count = DEFAULT_COUNT, signal = null, freshnes
         return payload;
     } catch (error) {
         log.error('Brave web search failed', { err: error, query: rewrittenQuery });
-        return { ok: false, reason: error?.message || 'request failed', results: [] };
+        return { ok: false, reason: error?.message || 'request failed', results:[] };
     }
 }
 
 async function searchImages(query, { count = 12, signal = null, gifIntent = false } = {}) {
     const apiKey = getApiKey();
     if (!apiKey) {
-        return { ok: false, reason: 'Brave Search API key not configured', results: [] };
+        return { ok: false, reason: 'Brave Search API key not configured', results:[] };
     }
 
     const cleanQuery = String(query || '').trim();
     if (!cleanQuery) {
-        return { ok: false, reason: 'Empty query', results: [] };
+        return { ok: false, reason: 'Empty query', results:[] };
     }
 
     const safeCount = Math.max(1, Math.min(Number(count) || 12, MAX_IMAGE_COUNT));
@@ -609,7 +618,7 @@ async function searchImages(query, { count = 12, signal = null, gifIntent = fals
                 body: body.slice(0, 200),
                 query: rewrittenQuery
             });
-            return { ok: false, reason: `Brave API returned ${res.status}`, results: [] };
+            return { ok: false, reason: `Brave API returned ${res.status}`, results:[] };
         }
 
         const data = await res.json();
@@ -619,7 +628,7 @@ async function searchImages(query, { count = 12, signal = null, gifIntent = fals
                 ? data.images.results
                 : Array.isArray(data?.image?.results)
                     ? data.image.results
-                    : [];
+                    :[];
 
         const ranked = dedupeAndRankImages(rawResults, rewrittenQuery, { gifIntent }).slice(0, safeCount);
         const results = ranked.map(item => ({
@@ -650,19 +659,19 @@ async function searchImages(query, { count = 12, signal = null, gifIntent = fals
         return payload;
     } catch (error) {
         log.error('Brave image search failed', { err: error, query: rewrittenQuery });
-        return { ok: false, reason: error?.message || 'request failed', results: [] };
+        return { ok: false, reason: error?.message || 'request failed', results:[] };
     }
 }
 
 async function searchLLMContext(query, { count = 5, signal = null } = {}) {
     const apiKey = getApiKey();
     if (!apiKey) {
-        return { ok: false, reason: 'Search API key not configured', results: [] };
+        return { ok: false, reason: 'Search API key not configured', results:[] };
     }
 
     const cleanQuery = String(query || '').trim();
     if (!cleanQuery) {
-        return { ok: false, reason: 'Empty query', results: [] };
+        return { ok: false, reason: 'Empty query', results:[] };
     }
 
     const safeCount = Math.max(1, Math.min(Number(count) || 5, MAX_WEB_COUNT));
@@ -700,7 +709,7 @@ async function searchLLMContext(query, { count = 5, signal = null } = {}) {
                 body: body.slice(0, 200),
                 query: rewrittenQuery
             });
-            return { ok: false, reason: `Brave API returned ${res.status}`, results: [] };
+            return { ok: false, reason: `Brave API returned ${res.status}`, results:[] };
         }
 
         const data = await res.json();
@@ -708,7 +717,7 @@ async function searchLLMContext(query, { count = 5, signal = null } = {}) {
             ? data.grounding.generic
             : Array.isArray(data?.grounding)
                 ? data.grounding
-                : [];
+                :[];
 
         const results = grounding.slice(0, safeCount).map(item => ({
             kind: 'llm_context',
@@ -732,7 +741,7 @@ async function searchLLMContext(query, { count = 5, signal = null } = {}) {
         return payload;
     } catch (error) {
         log.error('Brave LLM context search failed', { err: error, query: rewrittenQuery });
-        return { ok: false, reason: error?.message || 'request failed', results: [] };
+        return { ok: false, reason: error?.message || 'request failed', results:[] };
     }
 }
 
@@ -797,7 +806,7 @@ function pickFreshness(plan, prompt) {
 async function search(query, { count = DEFAULT_COUNT, signal = null, mode = 'auto', freshness = null } = {}) {
     const cleanQuery = String(query || '').trim();
     if (!cleanQuery) {
-        return { ok: false, reason: 'Empty query', results: [] };
+        return { ok: false, reason: 'Empty query', results:[] };
     }
 
     const plan = mode === 'auto'

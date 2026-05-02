@@ -1,3 +1,5 @@
+'use strict';
+
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -41,6 +43,11 @@ const FAST_START_MODE = parseBooleanEnv(process.env.MUSIC_FAST_START_MODE, true)
 const DEFAULT_FORMAT_SELECTOR = 'bestaudio/best';
 const YOUTUBE_FORMAT_SELECTOR =
     'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/worst[acodec!=none]/best[acodec!=none]/best';
+// SoundCloud has been brittle lately: some tracks crash on hls_mp3 probing.
+// Prefer stable direct HTTP audio first, then safer HLS variants.
+const SOUNDCLOUD_FORMAT_SELECTOR =
+    'bestaudio[protocol^=https][ext=opus]/bestaudio[protocol^=https][ext=aac]/bestaudio[protocol^=https][ext=mp3]/bestaudio[protocol^=http][ext=opus]/bestaudio[protocol^=http][ext=aac]/bestaudio[protocol^=http][ext=mp3]/bestaudio[ext=opus]/bestaudio[ext=aac]/bestaudio[ext=mp3]/bestaudio/best';
+const SOUNDCLOUD_EXTRACTOR_FORMATS = ['http_opus', 'http_aac', 'http_mp3', 'hls_opus', 'hls_aac'];
 function resolveSource(source, videoUrl) {
     const normalized = String(source || '').trim().toLowerCase();
     let resolved = normalized;
@@ -310,28 +317,54 @@ async function prepareCookiesAndExtractor(resolved) {
 function buildExtractorArgs({ hasCookies, resolved }) {
     const override = process.env.YTDLP_EXTRACTOR_ARGS;
     if (override && override.trim().length) {
-        return override.trim();
+        return [override.trim()];
     }
-    if (!resolved?.isYouTube) {
-        return null;
+
+    const args = [];
+
+    if (resolved?.isYouTube) {
+        const clients = [...DEFAULT_CLIENTS];
+        if (!hasCookies && FALLBACK_CLIENTS.length) {
+            clients.push(...FALLBACK_CLIENTS);
+        }
+        if (process.env.YTDLP_EXTRA_CLIENTS) {
+            const extras = process.env.YTDLP_EXTRA_CLIENTS.split(',')
+                .map(value => value.trim())
+                .filter(Boolean);
+            clients.push(...extras);
+        }
+        const uniqueClients = Array.from(new Set(clients));
+        args.push(`youtube:player_client=${uniqueClients.join(',')}`);
     }
-    const clients = [...DEFAULT_CLIENTS];
-    if (!hasCookies && FALLBACK_CLIENTS.length) {
-        clients.push(...FALLBACK_CLIENTS);
+
+    if (resolved?.isSoundCloud) {
+        const customFormats = String(process.env.YTDLP_SOUNDCLOUD_FORMATS || '').trim();
+        const selectedFormats = customFormats.length
+            ? customFormats
+            : SOUNDCLOUD_EXTRACTOR_FORMATS.join(',');
+        args.push(`soundcloud:formats=${selectedFormats}`);
     }
-    if (process.env.YTDLP_EXTRA_CLIENTS) {
-        const extras = process.env.YTDLP_EXTRA_CLIENTS.split(',')
-            .map(value => value.trim())
-            .filter(Boolean);
-        clients.push(...extras);
-    }
-    const uniqueClients = Array.from(new Set(clients));
-    return `youtube:player_client=${uniqueClients.join(',')}`;
+
+    return args.length ? args : null;
 }
+function appendExtractorArgs(args, extractorArgs) {
+    if (!extractorArgs?.length) {
+        return;
+    }
+    for (const entry of extractorArgs) {
+        if (!entry) {
+            continue;
+        }
+        args.push('--extractor-args', entry);
+    }
+}
+
 function buildFormatSelector(resolved) {
     const override = resolved?.isYouTube
         ? process.env.YTDLP_YOUTUBE_FORMAT
-        : process.env.YTDLP_FORMAT;
+        : resolved?.isSoundCloud
+            ? process.env.YTDLP_SOUNDCLOUD_FORMAT
+            : process.env.YTDLP_FORMAT;
     const globalOverride = process.env.YTDLP_FORMAT;
     const selectedOverride = override || globalOverride;
     if (selectedOverride && selectedOverride.trim().length) {
@@ -339,6 +372,9 @@ function buildFormatSelector(resolved) {
     }
     if (resolved?.isYouTube) {
         return YOUTUBE_FORMAT_SELECTOR;
+    }
+    if (resolved?.isSoundCloud) {
+        return SOUNDCLOUD_FORMAT_SELECTOR;
     }
     return DEFAULT_FORMAT_SELECTOR;
 }
@@ -500,9 +536,7 @@ async function checkVideoLimits(videoId, videoUrl, options = {}) {
         const { cookieFile, extractorArgs } = await prepareCookiesAndExtractor(resolved);
         const result = await new Promise((resolve, reject) => {
             const args = ['-j', '--no-warnings', '--no-playlist'];
-            if (extractorArgs) {
-                args.push('--extractor-args', extractorArgs);
-            }
+            appendExtractorArgs(args, extractorArgs);
             if (cookieFile) {
                 args.push('--cookies', cookieFile);
             }
@@ -579,7 +613,7 @@ async function createLiveAudioStream(videoId, videoUrl, options = {}) {
         '-o',
         '-'
     ];
-    if (extractorArgs) { args.push('--extractor-args', extractorArgs); }
+    appendExtractorArgs(args, extractorArgs);
     if (cookieFile) { args.push('--cookies', cookieFile); }
     args.push(videoUrl);
     const stderrChunks = [];
@@ -655,9 +689,7 @@ async function createDownloadTask(videoId, videoUrl, options = {}) {
             '--max-filesize',
             `${MAX_FILESIZE_MB}M`
         ];
-        if (extractorArgs) {
-            args.push('--extractor-args', extractorArgs);
-        }
+        appendExtractorArgs(args, extractorArgs);
         if (cookieFile) {
             args.push('--cookies', cookieFile);
         }
@@ -758,109 +790,68 @@ function scheduleCleanup(videoId, entry) {
         } finally {
             cache.delete(videoId);
         }
-    }, CLEANUP_DELAY_MS).unref?.();
-}
-function cancelCleanup(entry) {
-    if (entry?.timer) {
-        clearTimeout(entry.timer);
-        entry.timer = null;
+    }, CLEANUP_DELAY_MS);
+    if (entry.timer.unref) {
+        entry.timer.unref();
     }
+}
+function shouldRetryWithoutCookies(error) {
+    const msg = String(error?.message || error?.stderr || '').toLowerCase();
+    return msg.includes('sign in') || msg.includes('forbidden') || msg.includes('unauthorized') || msg.includes('401') || msg.includes('403');
 }
 async function acquireAudio(videoId, videoUrl, options = {}) {
-    let entry = cache.get(videoId);
-    if (entry && entry.path) {
-        const fresh = await fileIsFresh(entry.path);
-        if (!fresh) {
-            await fs.promises.rm(entry.path, { force: true }).catch(() => {});
-            cache.delete(videoId);
-            entry = null;
-        }
-    }
-    if (entry && entry.path) {
-        cancelCleanup(entry);
-        entry.refs += 1;
-        entry.lastAccess = Date.now();
+    const source = resolveSource(options.source, videoUrl).source;
+    const existing = cache.get(videoId);
+    if (existing && existing.path) {
+        existing.refs = (existing.refs || 0) + 1;
+        existing.lastAccess = Date.now();
         return {
-            filePath: entry.path,
-            release: () => releaseAudio(videoId)
+            filePath: existing.path,
+            release: () => releaseCacheRef(videoId)
         };
     }
     const pending = pendingDownloads.get(videoId);
     if (pending) {
-        const finalPath = await pending.promise;
+        const filePath = await pending.promise;
         return {
-            filePath: finalPath,
-            release: () => releaseAudio(videoId)
+            filePath,
+            release: () => releaseCacheRef(videoId)
         };
     }
-    const task = await createDownloadTask(videoId, videoUrl, options);
-    const wrappedPromise = task.promise
-        .then(path => {
-            const cacheEntry = {
-                path,
-                refs: 1,
-                lastAccess: Date.now(),
-                timer: null
-            };
-            cache.set(videoId, cacheEntry);
-            pendingDownloads.delete(videoId);
-            return path;
-        })
-        .catch(error => {
-            pendingDownloads.delete(videoId);
-            cache.delete(videoId);
-            throw error;
-        });
-    pendingDownloads.set(videoId, { promise: wrappedPromise, cancel: task.cancel });
-    const finalPath = await wrappedPromise;
-    return {
-        filePath: finalPath,
-        release: () => releaseAudio(videoId)
-    };
-}
-function cancelDownload(videoId) {
-    const pending = pendingDownloads.get(videoId);
-    if (pending) {
-        pending.cancel();
+    const task = createDownloadTask(videoId, videoUrl, { source, skipLimitCheck: options.skipLimitCheck === true });
+    pendingDownloads.set(videoId, { promise: task.promise, cancel: task.cancel });
+    try {
+        const filePath = await task.promise;
+        cache.set(videoId, { path: filePath, refs: 1, timer: null, lastAccess: Date.now() });
+        scheduleCleanup(videoId, cache.get(videoId));
+        return {
+            filePath,
+            release: () => releaseCacheRef(videoId)
+        };
+    } finally {
+        pendingDownloads.delete(videoId);
     }
 }
-function releaseAudio(videoId) {
+function releaseCacheRef(videoId) {
     const entry = cache.get(videoId);
     if (!entry) {
         return;
     }
-    entry.refs = Math.max(0, entry.refs - 1);
+    entry.refs = Math.max(0, (entry.refs || 1) - 1);
     entry.lastAccess = Date.now();
     if (entry.refs === 0) {
         scheduleCleanup(videoId, entry);
     }
 }
-function shouldRetryWithoutCookies(error) {
-    if (!error) {
-        return false;
+function cancelDownload(videoId) {
+    const pending = pendingDownloads.get(videoId);
+    if (pending?.cancel) {
+        pending.cancel();
     }
-    const stderr = String(error.stderr || '').toLowerCase();
-    if (!stderr) {
-        return false;
-    }
-    const retryIndicators = [
-        'cookies are no longer valid',
-        'watch video on youtube',
-        'error 153',
-        'player configuration error',
-        'signature extraction failed'
-    ];
-    return retryIndicators.some(indicator => stderr.includes(indicator));
 }
 module.exports = {
     acquireAudio,
     cancelDownload,
     checkVideoLimits,
-    createLiveAudioStream,
-    COOKIE_ENV_KEYS,
-    _internals: {
-        buildExtractorArgs,
-        buildFormatSelector,
-        resolveSource
-    }
+    createLiveAudioStream
 };
