@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Jarvis — Portal</title>
-  <meta name="description" content="Manage Jarvis for your Discord servers — features, moderators, automod, and more.">
+  <title>Jarvis - Portal</title>
+  <meta name="description" content="Manage Jarvis for your Discord servers - features, moderators, automod, and more.">
   <meta name="theme-color" content="#000000">
   <link rel="icon" href="/favicon.ico">
   <link rel="preconnect" href="https://cdn.discordapp.com" crossorigin>
@@ -579,6 +579,41 @@
     })[c]);
   }
 
+  function guildInitial(guild) {
+    return String(guild?.name || '?').charAt(0).toUpperCase();
+  }
+
+  function renderGuildIcon(guild) {
+    const urls = [guild?.icon, ...((Array.isArray(guild?.iconFallbacks) ? guild.iconFallbacks : []))]
+      .filter(Boolean);
+    const initial = guildInitial(guild);
+    if (!urls.length) {
+      return escapeHtml(initial);
+    }
+    return `<img src="${escapeHtml(urls[0])}" alt="" loading="lazy" decoding="async" data-fallbacks="${escapeHtml(JSON.stringify(urls.slice(1)))}" data-initial="${escapeHtml(initial)}" onerror="handleGuildIconError(this)">`;
+  }
+
+  function handleGuildIconError(img) {
+    let fallbacks = [];
+    try {
+      fallbacks = JSON.parse(img.dataset.fallbacks || '[]');
+    } catch {
+      fallbacks = [];
+    }
+
+    const nextUrl = fallbacks.shift();
+    if (nextUrl) {
+      img.dataset.fallbacks = JSON.stringify(fallbacks);
+      img.src = nextUrl;
+      return;
+    }
+
+    const parent = img.parentElement;
+    if (parent) {
+      parent.textContent = img.dataset.initial || '?';
+    }
+  }
+
   function getGuildById(guildId) {
     return [...(state.manageableGuilds || []), ...(state.inviteableGuilds || [])]
       .find((g) => String(g.id) === String(guildId)) || null;
@@ -605,9 +640,7 @@
   }
 
   function renderGuildCard(g, { inviteable = false } = {}) {
-    const icon = g.icon
-      ? `<img src="${escapeHtml(g.icon)}" alt="" loading="lazy" decoding="async">`
-      : escapeHtml((g.name || '?').charAt(0).toUpperCase());
+    const icon = renderGuildIcon(g);
     const memberCount = Number(g.memberCount || 0).toLocaleString();
     const activityCount = Number(g.activityCount || 0).toLocaleString();
     const subtitleBits = [`${memberCount} members`];
@@ -670,9 +703,7 @@
       root.innerHTML = '';
       return;
     }
-    const icon = modal.icon
-      ? `<img src="${escapeHtml(modal.icon)}" alt="" loading="lazy" decoding="async">`
-      : escapeHtml((modal.name || '?').charAt(0).toUpperCase());
+    const icon = renderGuildIcon(modal);
     const memberCount = Number(modal.memberCount || 0).toLocaleString();
     const activityCount = Number(modal.activityCount || 0).toLocaleString();
     const inviteUrl = escapeHtml(modal.inviteUrl || BOT_INVITE_URL || '%%DISCORD_INVITE%%' || '#');
@@ -899,7 +930,7 @@
         <div class="dashboard-modal">
           <h2>
             <span style="display:flex; align-items:center; gap: 10px;">
-              ⚙️ ${escapeHtml(guild?.name || 'Server')} — Configuration
+              ⚙️ ${escapeHtml(guild?.name || 'Server')} - Configuration
             </span>
             <div style="display:flex; align-items:center; gap: 8px;">
               <button class="btn-secondary btn" id="reload-config-btn" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">↻ Reload</button>
@@ -972,7 +1003,7 @@
 
           <div class="section">
             <h3>Wake word</h3>
-            <p class="hint">Custom word that wakes Jarvis in voice chat, or disable wake words entirely.</p>
+            <p class="hint">Custom word that wakes Jarvis, or disable wake words entirely.</p>
             <input type="text" id="wake-word-input" placeholder="jarvis" value="${escapeHtml(cfg.customWakeWord || '')}" maxlength="32">
             <div class="feature-toggle" style="margin-top: 0.75rem;">
               <label for="wake-disabled-toggle">Disable wake words entirely</label>

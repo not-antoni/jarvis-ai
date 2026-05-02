@@ -25,6 +25,7 @@ const activeStreams = new Map();
 
 const FAST_START_MODE = parseBooleanEnv(process.env.MUSIC_FAST_START_MODE, true);
 const DIRECT_STREAM_ENABLED = parseBooleanEnv(process.env.MUSIC_DIRECT_STREAM_ENABLED, true);
+const YOUTUBE_DIRECT_STREAM_ENABLED = parseBooleanEnv(process.env.MUSIC_YOUTUBE_DIRECT_STREAM_ENABLED, true);
 const DIRECT_STREAM_SOURCES = new Set(
     String(process.env.MUSIC_DIRECT_STREAM_SOURCES || 'youtube,soundcloud')
         .split(',')
@@ -95,11 +96,16 @@ function shouldUseDirectStream(source) {
         return false;
     }
 
-    return DIRECT_STREAM_SOURCES.has(String(source || '').toLowerCase());
+    const normalizedSource = String(source || '').toLowerCase();
+    if (normalizedSource === 'youtube' && !YOUTUBE_DIRECT_STREAM_ENABLED) {
+        return false;
+    }
+
+    return DIRECT_STREAM_SOURCES.has(normalizedSource);
 }
 
 function buildOutputFilter() {
-    const filters = [];
+    const filters = ['aresample=async=1:first_pts=0'];
     if (Number.isFinite(OUTPUT_HEADROOM_DB) && OUTPUT_HEADROOM_DB > 0) {
         filters.push(`volume=-${OUTPUT_HEADROOM_DB}dB`);
     }

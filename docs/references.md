@@ -15,7 +15,7 @@
 - https://github.com/yt-dlp/yt-dlp
 - Jarvis expects an EditThisCookie JSON export stored in `YTDLP_COOKIES_JSON` (or `YT_COOKIES_JSON`) when YouTube requires authentication.
 - `ffmpeg-static` is used by default; when unavailable the bot falls back to the latest prebuilt archives (ffmpeg + ffprobe).
-- You can tweak extractor behaviour with `YTDLP_EXTRACTOR_ARGS`; the default prefers Android/embedded clients to avoid `nsig` warnings.
+- You can tweak extractor behaviour with `YTDLP_EXTRACTOR_ARGS`, `YTDLP_FORMAT`, and `YTDLP_YOUTUBE_FORMAT`; the default prefers audio-only YouTube formats and only falls back to the lowest audio-bearing video stream when needed.
 - The bundled binary auto-updates every 12 hours; override with `YTDLP_UPDATE_INTERVAL_MS` or disable the built-in GitHub check noise via `YTDL_NO_UPDATE=1`.
 - Use `scripts/minify_cookies.py` to compact either the `YTDLP_COOKIES_JSON` env value or a browser export into a single-line string for deployment.
 - Set `YTDLP_DISABLE_AUTO_UPDATE=1` to skip background update checks if you manage the binary manually.

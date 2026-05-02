@@ -108,6 +108,14 @@ async function downloadAsset(url, destination) {
 }
 
 async function ensureFfmpeg() {
+    const configuredFfmpeg = process.env.FFMPEG_PATH?.trim();
+    if (configuredFfmpeg) {
+        return {
+            ffmpegPath: configuredFfmpeg,
+            ffprobePath: process.env.FFPROBE_PATH?.trim() || process.env.FFPROBE?.trim() || ffprobeStatic || null
+        };
+    }
+
     if (ffmpegStatic) {
         const ffprobePath = ffprobeStatic ?? null;
         return {

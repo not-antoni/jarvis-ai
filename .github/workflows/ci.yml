@@ -34,7 +34,7 @@ jobs:
           PUPPETEER_SKIP_DOWNLOAD: "1"
         run: npm ci
 
-      # Throwaway env values — only exist to satisfy config/validate.js zod
+      # Throwaway env values - only exist to satisfy config/validate.js zod
       # schema so unit tests can `require('config')`. NONE of these are real
       # secrets and NOTHING in the test suite actually connects to Discord,
       # MongoDB, or any AI provider.

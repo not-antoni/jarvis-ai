@@ -38,6 +38,9 @@ const DOCUMENTARY_OPENER =
 const cache = new Map(); // videoId -> { path, refs, timer, lastAccess }
 const pendingDownloads = new Map(); // videoId -> { promise, cancel }
 const FAST_START_MODE = parseBooleanEnv(process.env.MUSIC_FAST_START_MODE, true);
+const DEFAULT_FORMAT_SELECTOR = 'bestaudio/best';
+const YOUTUBE_FORMAT_SELECTOR =
+    'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/worst[acodec!=none]/best[acodec!=none]/best';
 function resolveSource(source, videoUrl) {
     const normalized = String(source || '').trim().toLowerCase();
     let resolved = normalized;
@@ -314,7 +317,7 @@ function buildExtractorArgs({ hasCookies, resolved }) {
     }
     const clients = [...DEFAULT_CLIENTS];
     if (!hasCookies && FALLBACK_CLIENTS.length) {
-        clients.unshift(...FALLBACK_CLIENTS);
+        clients.push(...FALLBACK_CLIENTS);
     }
     if (process.env.YTDLP_EXTRA_CLIENTS) {
         const extras = process.env.YTDLP_EXTRA_CLIENTS.split(',')
@@ -324,6 +327,20 @@ function buildExtractorArgs({ hasCookies, resolved }) {
     }
     const uniqueClients = Array.from(new Set(clients));
     return `youtube:player_client=${uniqueClients.join(',')}`;
+}
+function buildFormatSelector(resolved) {
+    const override = resolved?.isYouTube
+        ? process.env.YTDLP_YOUTUBE_FORMAT
+        : process.env.YTDLP_FORMAT;
+    const globalOverride = process.env.YTDLP_FORMAT;
+    const selectedOverride = override || globalOverride;
+    if (selectedOverride && selectedOverride.trim().length) {
+        return selectedOverride.trim();
+    }
+    if (resolved?.isYouTube) {
+        return YOUTUBE_FORMAT_SELECTOR;
+    }
+    return DEFAULT_FORMAT_SELECTOR;
 }
 let updateTask = null;
 async function autoUpdateBinary(binaryPath, options = {}) {
@@ -549,7 +566,19 @@ async function createLiveAudioStream(videoId, videoUrl, options = {}) {
     const startedAt = Date.now();
     const binaryPath = await ensureBinary();
     const { cookieFile, extractorArgs } = await prepareCookiesAndExtractor(resolved);
-    const args = ['--force-ipv4', '--ignore-errors', '--no-warnings', '--no-playlist', '--no-progress', '-f', 'bestaudio/best', '-o', '-'];
+    const args = [
+        '--force-ipv4',
+        '--ignore-errors',
+        '--no-warnings',
+        '--no-playlist',
+        '--no-progress',
+        '--hls-prefer-native',
+        '--hls-use-mpegts',
+        '-f',
+        buildFormatSelector(resolved),
+        '-o',
+        '-'
+    ];
     if (extractorArgs) { args.push('--extractor-args', extractorArgs); }
     if (cookieFile) { args.push('--cookies', cookieFile); }
     args.push(videoUrl);
@@ -607,8 +636,10 @@ async function createDownloadTask(videoId, videoUrl, options = {}) {
             '--no-overwrites',
             '--no-part',
             '--no-mtime',
+            '--hls-prefer-native',
+            '--hls-use-mpegts',
             '-f',
-            'bestaudio/best',
+            buildFormatSelector(resolved),
             '--no-playlist',
             '--extract-audio',
             '--audio-format',
@@ -826,5 +857,10 @@ module.exports = {
     cancelDownload,
     checkVideoLimits,
     createLiveAudioStream,
-    COOKIE_ENV_KEYS
+    COOKIE_ENV_KEYS,
+    _internals: {
+        buildExtractorArgs,
+        buildFormatSelector,
+        resolveSource
+    }
 };

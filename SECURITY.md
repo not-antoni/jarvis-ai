@@ -36,7 +36,7 @@ Things I care about:
 
 Out of scope:
 - Self-hosted misconfiguration (that's on you)
-- Rate limiting — it's a Discord bot, Discord handles that
+- Rate limiting - it's a Discord bot, Discord handles that
 - Vulnerabilities in dependencies that don't actually affect this project's usage
 - Social engineering the bot through normal conversation (it's an AI, it'll get tricked sometimes)
 

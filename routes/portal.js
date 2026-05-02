@@ -155,11 +155,13 @@ function oauthGuildHasAdminAccess(oauthGuild) {
     );
 }
 
-function buildGuildIconUrl(guildId, iconHash) {
-    if (!guildId || !iconHash) {return null;}
+function buildGuildIconUrls(guildId, iconHash) {
+    if (!guildId || !iconHash) {return [];}
     const isAnimated = String(iconHash).startsWith('a_');
-    const ext = isAnimated ? 'gif' : 'png';
-    return `https://cdn.discordapp.com/icons/${guildId}/${iconHash}.${ext}?size=128`;
+    const extensions = isAnimated
+        ? ['gif', 'webp', 'png']
+        : ['png', 'webp', 'jpg'];
+    return extensions.map(ext => `https://cdn.discordapp.com/icons/${guildId}/${iconHash}.${ext}?size=128`);
 }
 
 function normalizeGuildCounts(botGuild, oauthGuild) {
@@ -187,7 +189,8 @@ function buildGuildSummary({ botGuild = null, oauthGuild = null, botOwnerMode = 
     const guildId = botGuild?.id || oauthGuild?.id || null;
     const name = botGuild?.name || oauthGuild?.name || 'Unknown Server';
     const iconHash = botGuild?.icon || oauthGuild?.icon || null;
-    const iconUrl = buildGuildIconUrl(guildId, iconHash);
+    const iconUrls = buildGuildIconUrls(guildId, iconHash);
+    const iconUrl = iconUrls[0] || null;
     const { memberCount, activityCount } = normalizeGuildCounts(botGuild, oauthGuild);
     const botMe = botGuild?.members?.me || null;
     const youAreOwner = Boolean(oauthGuild?.owner) || botGuild?.ownerId === userId;
@@ -198,6 +201,7 @@ function buildGuildSummary({ botGuild = null, oauthGuild = null, botOwnerMode = 
         id: guildId,
         name,
         icon: iconUrl,
+        iconFallbacks: iconUrls.slice(1),
         memberCount,
         activityCount,
         installed,

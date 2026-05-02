@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 #
-# Jarvis Discord Bot — multi-stage build
+# Jarvis Discord Bot - multi-stage build
 #
 # Stage 1: install native build deps and compile node-gyp modules (canvas,
 # opus, sharp, etc.), then produce a lean runtime image.
